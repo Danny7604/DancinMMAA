@@ -39,6 +39,16 @@ export default function App() {
   // Theme state
   const [theme, setTheme] = useState(() => {
     const tg = window.Telegram?.WebApp;
+    if (tg && tg.themeParams?.bg_color) {
+      const color = tg.themeParams.bg_color.replace('#', '');
+      if (color.length === 6) {
+        const r = parseInt(color.substring(0, 2), 16);
+        const g = parseInt(color.substring(2, 4), 16);
+        const b = parseInt(color.substring(4, 6), 16);
+        const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+        return brightness < 140 ? 'dark' : 'light';
+      }
+    }
     if (tg && tg.colorScheme) return tg.colorScheme;
     
     const saved = localStorage.getItem('dancin-theme');
@@ -91,7 +101,20 @@ export default function App() {
     const tg = window.Telegram?.WebApp;
     const hasTgTheme = tg && tg.themeParams && Object.keys(tg.themeParams).length > 0;
     
-    if (hasTgTheme) {
+    let isMatchingTgScheme = false;
+    if (hasTgTheme && tg.themeParams?.bg_color) {
+      const color = tg.themeParams.bg_color.replace('#', '');
+      if (color.length === 6) {
+        const r = parseInt(color.substring(0, 2), 16);
+        const g = parseInt(color.substring(2, 4), 16);
+        const b = parseInt(color.substring(4, 6), 16);
+        const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+        const tgScheme = brightness < 140 ? 'dark' : 'light';
+        isMatchingTgScheme = tgScheme === theme;
+      }
+    }
+    
+    if (hasTgTheme && isMatchingTgScheme) {
       const params = tg.themeParams;
       if (params.bg_color) root.style.setProperty('--tg-bg-color', params.bg_color);
       if (params.secondary_bg_color) root.style.setProperty('--tg-secondary-bg-color', params.secondary_bg_color);
@@ -129,6 +152,18 @@ export default function App() {
       tg.expand();
 
       tg.onEvent('themeChanged', () => {
+        const bg = tg.themeParams?.bg_color;
+        if (bg) {
+          const color = bg.replace('#', '');
+          if (color.length === 6) {
+            const r = parseInt(color.substring(0, 2), 16);
+            const g = parseInt(color.substring(2, 4), 16);
+            const b = parseInt(color.substring(4, 6), 16);
+            const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+            setTheme(brightness < 140 ? 'dark' : 'light');
+            return;
+          }
+        }
         setTheme(tg.colorScheme || 'dark');
       });
 
