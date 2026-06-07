@@ -1,0 +1,640 @@
+
+// ==========================================
+// DANCIN MMA - FULL WORKER CODE (SUPABASE)
+// ==========================================
+
+const FIXED_EXPENSE = {
+  "Chi phí sinh hoạt": ["Ăn uống", "Coffee", "Mua sắm gia đình", "Online shopping", "Dating", "Pet", "Thể thao", "Di chuyển", "Game"],
+  "Chi phí cố định": ["Tiền thuê nhà", "Điện nước", "Internet", "Bảo hiểm", "Học phí"],
+  "Chi phí phát sinh": ["Nhậu", "Đám tiệc", "Quà cáp", "Y tế", "Du lịch", "Sửa xe", "Household", "Công việc", "Tín dụng", "Cho mượn"],
+  "Đầu tư - Tiết kiệm": ["Quỹ tiết kiệm", "Chứng khoán / Vàng", "Quỹ khác"]
+};
+const FIXED_INCOME = {
+     "Thu nhập": ["Lương chính", "Job phụ", "Job phụ 2"],
+     "Lãi/Lời": ["Lãi tiết kiệm", "Lãi đầu tư", "Cổ tức"],
+     "Thưởng/Quà": ["Thưởng", "Được tặng", "Trúng thưởng"],
+     "Khác": ["Thu hồi nợ", "Bán đồ cũ"]
+   };
+
+export default {
+  async fetch(request, env, ctx) {
+    const url = new URL(request.url);
+
+    // ==========================================
+    // 1. NHÁNH API CHO TELEGRAM MINI APP
+    // ==========================================
+    if (url.pathname.startsWith('/api/')) {
+      const headers = { 
+        'Content-Type': 'application/json', 
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, PATCH, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+      };
+
+      if (request.method === 'OPTIONS') return new Response(null, { headers });
+
+      if (url.pathname === '/api/wallets' && request.method === 'GET') {
+        const chatId = url.searchParams.get('chat_id');
+        if (!chatId) return new Response(JSON.stringify({ error: "Missing chat_id" }), { status: 400, headers });
+        const accounts = await supabaseFetch(env, `accounts?chat_id=eq.${chatId}`);
+        return new Response(JSON.stringify(accounts || []), { status: 200, headers });
+      }
+
+      if (url.pathname === '/api/wallets' && request.method === 'PATCH') {
+        try {
+          const body = await request.json();
+          if (!body.id || body.balance === undefined) {
+            return new Response(JSON.stringify({ error: "Invalid payload" }), { status: 400, headers });
+          }
+          const updateRes = await supabaseFetch(env, `accounts?id=eq.${body.id}`, 'PATCH', { balance: parseInt(body.balance) });
+          if (updateRes !== null) {
+            return new Response(JSON.stringify({ success: true }), { status: 200, headers });
+          } else {
+            return new Response(JSON.stringify({ error: "Database error" }), { status: 500, headers });
+          }
+        } catch (e) {
+          return new Response(JSON.stringify({ error: e.message }), { status: 500, headers });
+        }
+      }
+
+      if (url.pathname === '/api/dashboard' && request.method === 'GET') {
+        const chatId = url.searchParams.get('chat_id');
+        if (!chatId) return new Response(JSON.stringify({ error: "Missing chat_id" }), { status: 400, headers });
+
+        try {
+          const accounts = await supabaseFetch(env, `accounts?chat_id=eq.${chatId}`);
+          let totalBalance = 0;
+          accounts?.forEach(acc => totalBalance += parseInt(acc.balance || 0));
+
+          const now = new Date();
+          const currentMonth = ("0" + (now.getMonth() + 1)).slice(-2) + "/" + now.getFullYear();
+          const txs = await supabaseFetch(env, `transactions?chat_id=eq.${chatId}&date=ilike.%25${currentMonth}`);
+
+          let monthlyIncome = 0;
+          let monthlyExpense = 0;
+          let expenseByCategory = {};
+
+          txs?.forEach(tx => {
+            const amount = parseInt(tx.amount || 0);
+            if (tx.type === 'thu') {
+              monthlyIncome += amount;
+            } else if (tx.type === 'chi') {
+              monthlyExpense += amount;
+              if (!expenseByCategory[tx.level1]) expenseByCategory[tx.level1] = 0;
+              expenseByCategory[tx.level1] += amount;
+            }
+          });
+
+          const chartData = Object.keys(expenseByCategory).map(key => ({
+            label: key,
+            value: expenseByCategory[key]
+          }));
+
+          const dashboardData = {
+            total_balance: totalBalance,
+            monthly_income: monthlyIncome,
+            monthly_expense: monthlyExpense,
+            chart_data: chartData,
+            recent_transactions: txs?.slice(0, 5)
+          };
+
+          return new Response(JSON.stringify(dashboardData), { status: 200, headers });
+        } catch (e) {
+          return new Response(JSON.stringify({ error: e.message }), { status: 500, headers });
+        }
+      }
+    }
+
+    // ==========================================
+    // 2. NHÁNH WEBHOOK CHO TELEGRAM BOT
+    // ==========================================
+    if (request.method === 'POST') {
+      try {
+        const update = await request.json();
+        // TRUYỀN ĐỦ 3 BIẾN ĐỂ CHẠY NGẦM KHÔNG LỖI
+        if (update.message) {
+          ctx.waitUntil(handleMessage(update.message, env, ctx));
+        } else if (update.callback_query) {
+          ctx.waitUntil(handleCallbackQuery(update.callback_query, env, ctx));
+        }
+        return new Response('OK', { status: 200 });
+      } catch (error) {
+        console.error('Error processing webhook:', error);
+        return new Response('Error', { status: 500 });
+      }
+    }
+
+    return new Response('Dancin CFO API is running!', { status: 200 });
+  }
+};
+
+// ==========================================
+// CÁC HÀM HELPER
+// ==========================================
+async function supabaseFetch(env, endpoint, method = 'GET', body = null, customPrefer = null) {
+  const dbUrlRaw = env.SUPABASE_URL || env.supabase_url;
+  const dbKey = env.SUPABASE_KEY || env.supabase_key;
+  if (!dbUrlRaw || !dbKey) return null;
+
+  const dbUrl = dbUrlRaw.replace(/\/$/, '');
+  const url = `${dbUrl}/rest/v1/${endpoint}`;
+  
+  const options = {
+    method: method,
+    headers: {
+      'apikey': dbKey,
+      'Authorization': `Bearer ${dbKey}`,
+      'Content-Type': 'application/json',
+      // Nếu có truyền customPrefer thì dùng, nếu không thì tự nhận diện theo method
+      'Prefer': customPrefer || (method === 'POST' ? 'return=minimal, resolution=ignore-duplicates' : 'return=representation')
+    }
+  };
+  
+  if (body && method !== 'GET') options.body = JSON.stringify(body);
+
+  try {
+    const response = await fetch(url, options);
+    if (!response.ok) return null;
+    // Bắt lỗi rỗng nếu API trả về HTTP 204 No Content (khi DELETE)
+    const text = await response.text();
+    return text ? JSON.parse(text) : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+async function sendMessage(env, chatId, text, keyboard = null) {
+  const payload = { chat_id: chatId, text: text, parse_mode: 'HTML' };
+  if (keyboard) payload.reply_markup = keyboard;
+  
+  await fetch(`https://api.telegram.org/bot${env.TelegramToken}/sendMessage`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+}
+
+async function getFilePath(env, fileId) {
+  const url = `https://api.telegram.org/bot${env.TelegramToken}/getFile?file_id=${fileId}`;
+  const response = await fetch(url);
+  const data = await response.json();
+  if (data.ok) {
+    return data.result.file_path;
+  }
+  return null;
+}
+
+// LẤY TỆP TỪ TELEGRAM VÀ TRANS AUDIO //
+async function transcribeAudio(env, filePath) {
+  const fileUrl = `https://api.telegram.org/file/bot${env.TelegramToken}/${filePath}`;
+  
+  const audioResponse = await fetch(fileUrl);
+  const audioBlob = await audioResponse.blob();
+
+  const formData = new FormData();
+  formData.append('file', audioBlob, 'audio.ogg');
+  formData.append('model', 'whisper-large-v3');
+
+  const groqKey = env.GROQ_API_KEY || env.GroqAPIkey || env.groq_api_key;
+  
+  const response = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${groqKey}` },
+    body: formData
+  });
+
+  const result = await response.json();
+  return result.text || "";
+}
+
+
+async function editMessageText(env, chatId, messageId, text, keyboard = null) {
+  const payload = { chat_id: chatId, message_id: messageId, text: text, parse_mode: 'HTML' };
+  if (keyboard) payload.reply_markup = keyboard;
+  
+  await fetch(`https://api.telegram.org/bot${env.TelegramToken}/editMessageText`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+}
+
+// ==========================================
+// XỬ LÝ LỆNH TỪ NGƯỜI DÙNG
+// ==========================================
+async function handleMessage(message, env, ctx) {
+  const chatId = message.chat.id.toString();
+  const text = message.text || "";
+  // Khai báo biến name ngay từ đầu để sử dụng cho mọi ngữ cảnh
+  const name = message.from?.first_name || message.chat?.first_name || 'bạn';
+
+  // 1. LỆNH /START (Đồng bộ & Bắt lỗi nghiêm ngặt)
+  if (text === '/start') {
+    await sendMessage(env, chatId, `⏳ Đang kết nối và thiết lập không gian cá nhân của bạn...`);
+
+    // Tạo User
+    await supabaseFetch(env, 'users', 'POST', { chat_id: chatId, name: name });
+
+    // Kiểm tra xem đã có đủ 3 ví chưa, nếu chưa thì tạo mới
+    let accs = await supabaseFetch(env, `accounts?chat_id=eq.${chatId}`);
+    if (!accs || accs.length < 3) {
+      const defaultAccounts = [
+        { chat_id: chatId, account_name: 'Tiền mặt', account_type: 'tien_mat', balance: 0 },
+        { chat_id: chatId, account_name: 'Tài khoản chính', account_type: 'ngan_hang', balance: 0 },
+        { chat_id: chatId, account_name: 'Thẻ tín dụng', account_type: 'tin_dung', balance: 0 }
+      ];
+      await supabaseFetch(env, 'accounts', 'POST', defaultAccounts);
+      accs = await supabaseFetch(env, `accounts?chat_id=eq.${chatId}`);
+    }
+
+    // 🌟 THÊM MỚI TẠI ĐÂY: KHỞI TẠO TỪ ĐIỂN DANH MỤC CÁ NHÂN
+    let userCategories = await supabaseFetch(env, `categories?chat_id=eq.${chatId}`);
+    
+    // Nếu user chưa có danh mục nào (user mới), tiến hành copy từ FIXED_EXPENSE và FIXED_INCOME
+    if (!userCategories || userCategories.length === 0) {
+      const defaultCategories = [];
+
+      // Phân tách chi phí
+      for (const [level1, level2Array] of Object.entries(FIXED_EXPENSE)) {
+        level2Array.forEach(level2 => {
+          defaultCategories.push({ chat_id: chatId, transaction_type: 'chi', level_1: level1, level_2: level2 });
+        });
+      }
+
+      // Phân tách thu nhập
+      for (const [level1, level2Array] of Object.entries(FIXED_INCOME)) {
+        level2Array.forEach(level2 => {
+          defaultCategories.push({ chat_id: chatId, transaction_type: 'thu', level_1: level1, level_2: level2 });
+        });
+      }
+
+      // Bắn toàn bộ mảng dữ liệu lên Supabase chỉ với 1 lệnh POST
+      await supabaseFetch(env, 'categories', 'POST', defaultCategories);
+    }
+
+    // CHỐT CHẶN KIỂM TRA LỖI (Giữ nguyên)
+    if (!accs || accs.length < 3) {
+      return sendMessage(env, chatId, `❌ <b>LỖI NGHIÊM TRỌNG:</b> Không thể ghi dữ liệu vào Supabase.\n\n💡 <b>Vui lòng kiểm tra lại trên Supabase:</b>\n1. Các bảng <code>users</code> và <code>accounts</code> đã được chạy lệnh SQL tạo thành công chưa?\n2. Khóa API và URL cấu hình trong Cloudflare có bị sai ký tự nào không?`);
+    }
+
+    const msg = `👋 Chào ${name}!\n\nHệ thống bọc thép đã sẵn sàng. Để tiết kiệm thời gian, bạn hãy chạm vào dòng bên dưới để copy, điền số dư thực tế và gửi lại cho mình nhé (1 lần duy nhất):`;
+    await sendMessage(env, chatId, msg);
+    return sendMessage(env, chatId, `<code>/init 0 | 0 | 0</code>\n<i>(Tương ứng: Tiền mặt | TK Chính | Thẻ tín dụng)</i>`);
+  }
+
+  // 2. LỆNH /INIT (Khởi tạo số dư 1 chạm)
+  if (text.startsWith('/init')) {
+    const parts = text.replace('/init', '').split('|').map(s => parseInt(s.replace(/[^0-9-]/g, ''))); 
+    if (parts.length !== 3 || parts.some(isNaN)) {
+      return sendMessage(env, chatId, '⚠️ Cú pháp chưa chuẩn. Bạn hãy copy lại template và thay số 0 bằng số tiền nhé.');
+    }
+
+    await sendMessage(env, chatId, `⏳ Đang cập nhật đồng loạt 3 ví...`);
+
+    const accs = await supabaseFetch(env, `accounts?chat_id=eq.${chatId}`);
+    if (!accs || accs.length < 3) return sendMessage(env, chatId, '❌ Lỗi lấy dữ liệu ví. Bạn gõ /start lại nhé.');
+
+    const tienMat = accs.find(a => a.account_name === 'Tiền mặt');
+    const tkChinh = accs.find(a => a.account_name === 'Tài khoản chính');
+    const theTinDung = accs.find(a => a.account_name === 'Thẻ tín dụng');
+
+    ctx.waitUntil(Promise.all([
+      supabaseFetch(env, `accounts?id=eq.${tienMat?.id}`, 'PATCH', { balance: parts[0] }),
+      supabaseFetch(env, `accounts?id=eq.${tkChinh?.id}`, 'PATCH', { balance: parts[1] }),
+      supabaseFetch(env, `accounts?id=eq.${theTinDung?.id}`, 'PATCH', { balance: parts[2] })
+    ]));
+
+    return sendMessage(env, chatId, `✅ <b>Khởi tạo ví thành công!</b>\n\n💵 Tiền mặt: ${parts[0].toLocaleString('vi-VN')}đ\n🏦 TK Chính: ${parts[1].toLocaleString('vi-VN')}đ\n💳 Thẻ tín dụng: ${parts[2].toLocaleString('vi-VN')}đ\n\nTừ giờ AI sẽ tự động ghi chép thu chi cho bạn!`);
+  }
+
+  // 3. LỆNH /SET SODU (Dự phòng cho từng ví lẻ)
+  if (text.toLowerCase().startsWith('/set sodu ')) {
+    const parts = text.replace(/\/set sodu /i, '').trim().split(' ');
+    if (parts.length < 2) return sendMessage(env, chatId, '⚠️ <b>Cú pháp sai.</b>\nVui lòng nhập: <code>/set sodu [Tên ví] [Số tiền]</code>');
+
+    const amountStr = parts.pop().replace(/[,.]/g, ''); 
+    const amount = parseInt(amountStr);
+    const walletName = parts.join(' ').trim();
+
+    if (isNaN(amount)) return sendMessage(env, chatId, '⚠️ Số tiền không hợp lệ.');
+
+    await sendMessage(env, chatId, `⏳ Đang cập nhật...`);
+    const accs = await supabaseFetch(env, `accounts?chat_id=eq.${chatId}&account_name=ilike.${encodeURIComponent(walletName)}`);
+    
+    if (!accs || accs.length === 0) return sendMessage(env, chatId, `❌ Không tìm thấy ví "<b>${walletName}</b>".`);
+
+    const updateRes = await supabaseFetch(env, `accounts?id=eq.${accs[0].id}`, 'PATCH', { balance: amount });
+    if (updateRes !== null) {
+      return sendMessage(env, chatId, `✅ <b>Thành công!</b>\n💳 Ví: <b>${accs[0].account_name}</b>\n💰 Số dư: <b>${amount.toLocaleString('vi-VN')} đ</b>`);
+    } else {
+      return sendMessage(env, chatId, `❌ Có lỗi xảy ra.`);
+    }
+  }
+
+  // 4. LỆNH /BIEUDO
+  if (text === '/bieudo') {
+    await sendMessage(env, chatId, "📊 Đợi mình một xíu...");
+    const chartUrl = `https://quickchart.io/chart?c={type:'doughnut',data:{labels:['Sinh hoạt','Cố định','Đầu tư'],datasets:[{data:[50,30,20]}]}}`;
+    await fetch(`https://api.telegram.org/bot${env.TelegramToken}/sendPhoto`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, photo: chartUrl, caption: "📊 Phân bổ dòng tiền tháng này." })
+    });
+    return;
+  }
+
+  // 5. GIAO DỊCH QUA AI
+  if (message.voice) {
+    await sendMessage(env, chatId, "🎙️ Mình đang nghe và dịch ra chữ...");
+    const filePath = await getFilePath(env, message.voice.file_id);
+    
+    if (filePath) {
+      const voiceText = await transcribeAudio(env, filePath);
+      if (voiceText) {
+        await sendMessage(env, chatId, `📝 Bạn vừa nói: "<i>${voiceText}</i>"`);
+        // Đẩy phần văn bản vừa dịch được vào lõi AI để xử lý giao dịch
+        await processTransaction(chatId, voiceText, env, name);
+      } else {
+        await sendMessage(env, chatId, "❌ Mình nghe không rõ, bạn có thể nói lại hoặc gõ chữ được không?");
+      }
+    } else {
+      await sendMessage(env, chatId, "❌ Không thể tải file âm thanh từ Telegram.");
+    }
+  } 
+  // Xử lý khi người dùng nhập Text thông thường
+  else if (text && !text.startsWith('/')) {
+    await processTransaction(chatId, text, env, name);
+  }
+
+
+  // ----------------------------------------------------
+  // BẮT SỰ KIỆN: NGƯỜI DÙNG NHẬP DANH MỤC MỚI (FORCE REPLY)
+  // ----------------------------------------------------
+  if (message.reply_to_message && message.reply_to_message.text?.includes('Mã GD:')) {
+    const repliedText = message.reply_to_message.text;
+    const newL2 = text.trim(); // Tên danh mục người dùng vừa gõ
+    
+    // Bóc tách L1 và Transaction ID từ tin nhắn cũ của Bot
+    const l1Match = repliedText.match(/nhóm (.*?)\?/);
+    const txIdMatch = repliedText.match(/Mã GD: (.*?)\)/);
+
+    if (l1Match && txIdMatch) {
+      const l1 = l1Match[1];
+      const txId = txIdMatch[1];
+
+      await sendMessage(env, chatId, `⏳ Đang ghi nhớ danh mục mới...`);
+
+      // 1. Tìm xem L1 này thuộc Thu hay Chi (để lưu đúng logic)
+      const refCat = await supabaseFetch(env, `categories?chat_id=eq.${chatId}&level_1=ilike.${l1}%25`);
+      const txType = (refCat && refCat.length > 0) ? refCat[0].transaction_type : 'chi';
+
+      // 2. Thêm vào bảng categories để AI học cho lần sau
+      await supabaseFetch(env, 'categories', 'POST', {
+        chat_id: chatId,
+        transaction_type: txType,
+        level_1: l1,
+        level_2: newL2
+      });
+
+      // 3. Sửa lại giao dịch gốc
+      await supabaseFetch(env, `transactions?id=eq.${txId}`, 'PATCH', { level1: l1, level2: newL2 });
+
+      return sendMessage(env, chatId, `✅ <b>Thành công!</b>\n\nTừ nay mình đã nhớ danh mục: <b>${l1} ➡️ ${newL2}</b>.\nGiao dịch của bạn cũng đã được cập nhật!`);
+    }
+  }
+}
+
+// ==========================================
+// LÕI XỬ LÝ GIAO DỊCH VỚI AI COMPONENT (TÍCH HỢP X-QUANG LỖI)
+// ==========================================
+// Bạn có thể xóa hẳn 2 hằng số FIXED_EXPENSE và FIXED_INCOME ở đầu file đi cho gọn code nhé.
+
+async function processTransaction(chatId, text, env, userName) {
+  const accountsData = await supabaseFetch(env, `accounts?chat_id=eq.${chatId}`) || [];
+  const accountsList = accountsData.map(a => a.account_name).join(', ');
+
+  const now = new Date();
+  const currentTime = now.toLocaleTimeString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit' });
+
+  // 🌟 BƯỚC 1: LẤY TỪ ĐIỂN DANH MỤC RIÊNG CỦA USER TỪ SUPABASE
+  const userCategories = await supabaseFetch(env, `categories?chat_id=eq.${chatId}`);
+  
+  let userExpense = {};
+  let userIncome = {};
+
+  // 🌟 BƯỚC 2: GOM NHÓM DỮ LIỆU ĐỂ RENDER RA JSON CHO PROMPT
+  if (userCategories && userCategories.length > 0) {
+    userCategories.forEach(cat => {
+      if (cat.transaction_type === 'chi') {
+        if (!userExpense[cat.level_1]) userExpense[cat.level_1] = [];
+        if (!userExpense[cat.level_1].includes(cat.level_2)) userExpense[cat.level_1].push(cat.level_2);
+      } else if (cat.transaction_type === 'thu') {
+        if (!userIncome[cat.level_1]) userIncome[cat.level_1] = [];
+        if (!userIncome[cat.level_1].includes(cat.level_2)) userIncome[cat.level_1].push(cat.level_2);
+      }
+    });
+  } else {
+    // Dự phòng nếu bảng categories bị trống (lỗi bất ngờ), trả về một mảng cơ bản nhất để AI không chết
+    userExpense = { "Chi phí sinh hoạt": ["Khác"] };
+    userIncome = { "Thu nhập": ["Khác"] };
+  }
+
+  // Chuyển đổi thành chuỗi JSON đẹp mắt để nhồi vào Prompt
+  const expenseStructure = JSON.stringify(userExpense, null, 2);
+  const incomeStructure = JSON.stringify(userIncome, null, 2);
+
+  // 🌟 BƯỚC 3: PROMPT ĐƯỢC GIỮ NGUYÊN - AI SẼ NHÌN THẤY DANH MỤC MỚI NHẤT
+  const systemPrompt = `Bạn là trợ lý tài chính. Xưng "mình" và "${userName}".
+  Thời gian hiện tại của người dùng đang là: ${currentTime}.
+
+  Quy tắc phân loại (BẮT BUỘC tuân thủ chặt chẽ):
+  - CHI TIÊU: Dựa vào cấu trúc JSON sau để xác định "level1" và "level2":
+  ${expenseStructure}
+  - THU NHẬP: Dựa vào cấu trúc JSON sau để xác định "level1" và "level2":
+  ${incomeStructure}
+  - Nguồn tiền: ${accountsList || 'Tiền mặt'}
+
+  Trả về JSON Schema:
+  {
+    "action": "transaction",
+    "type": "thu" | "chi" | "chuyen_tien",
+    "amount": number,
+    "level1": "Tên cấp 1 (lấy chính xác từ sơ đồ)",
+    "level2": "Tên cấp 2 (lấy chính xác từ sơ đồ)",
+    "account_name": "nguồn tiền",
+    "transfer_to_account": "ví nhận (nếu type=chuyen_tien)",
+    "note": "Giữ nguyên từ khóa người dùng (VD: 'Cafe'). TUYỆT ĐỐI KHÔNG TỰ BỊA THÊM buổi sáng/trưa/chiều/tối nếu người dùng không nhập.",
+    "bot_message": "1 câu nhận xét ngắn, dễ thương"
+  }
+  Chỉ trả về JSON, không Markdown.`;
+
+  try {
+    const groqKey = env.GROQ_API_KEY || env.GroqAPIkey || env.groq_api_key;
+    if (!groqKey) {
+      return sendMessage(env, chatId, "❌ <b>Lỗi cấu hình:</b> Chưa tìm thấy biến môi trường API Key của Groq trong Cloudflare.");
+    }
+
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${groqKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'llama-3.3-70b-versatile',
+        messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: text }],
+        response_format: { type: "json_object" }
+      })
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      return sendMessage(env, chatId, `❌ <b>Lỗi kết nối AI (Groq):</b>\n<code>${errText}</code>`);
+    }
+
+    const aiResult = await response.json();
+    let rawContent = aiResult.choices[0].message.content;
+    rawContent = rawContent.replace(/```json/g, '').replace(/```/g, '').trim();
+    const data = JSON.parse(rawContent);
+
+    if (data.action === 'transaction') {
+      const insertData = {
+        chat_id: chatId,
+        type: data.type,
+        amount: data.amount,
+        date: new Date().toLocaleDateString('en-GB', { timeZone: 'Asia/Ho_Chi_Minh' }),
+        level1: data.level1,
+        level2: data.level2,
+        account_name: data.account_name,
+        transfer_to_account: data.transfer_to_account || null,
+        note: data.note
+      };
+
+      // Gọi lệnh lưu transaction và lấy lại thông tin giao dịch vừa tạo (để lấy ID)
+      const insertResponse = await supabaseFetch(env, 'transactions', 'POST', insertData);
+
+      // Rút ID thực tế từ Supabase trả về (thường trả về mảng [{ id: 123, ... }])
+      const realTxId = (insertResponse && insertResponse.length > 0) ? insertResponse[0].id : Date.now();
+
+      const typeIcon = data.type === 'chi' ? '🔴' : data.type === 'thu' ? '🟢' : '🔄';
+      
+      const reply = `${typeIcon} <b>Mình đã ghi lại giúp bạn!</b>\n💰 Số tiền: <b>${data.amount.toLocaleString('vi-VN')} đ</b>\n📂 Danh mục: ${data.level1} ➡️ ${data.level2}\n💳 Từ ví: ${data.account_name} ${data.type === 'chuyen_tien' ? '➡️ ' + data.transfer_to_account : ''}\n📝 Ghi chú: ${data.note}\n\n💬 <i>"${data.bot_message}"</i>`;
+
+      // Gắn ID thực của giao dịch vào nút Sửa bằng tiền tố "edit_"
+      await sendMessage(env, chatId, reply, { inline_keyboard: [[{ text: '✏️ Sửa lại xíu', callback_data: `edit_${realTxId}` }]] });
+    }
+
+  } catch (error) {
+    await sendMessage(env, chatId, `🛠 <b>Phát hiện lỗi xử lý:</b>\n<code>${error.message}</code>\n\nBạn hãy gửi mã lỗi này cho tôi nhé!`);
+  }
+}
+
+// ==========================================
+// XỬ LÝ LỆNH CALLBACK QUERY (Nút bấm Inline)
+// ==========================================
+async function handleCallbackQuery(callbackQuery, env, ctx) {
+  const data = callbackQuery.data;
+  const chatId = callbackQuery.message.chat.id.toString();
+  const messageId = callbackQuery.message.message_id;
+
+  // Hợp nhất cấu trúc danh mục từ hằng số đầu file
+  const allCategories = { ...FIXED_EXPENSE, ...FIXED_INCOME };
+
+  // 1. CHỌN DANH MỤC CẤP 1 (Sử dụng INDEX để tối ưu dung lượng nút bấm dưới 64 bytes)
+  if (data.startsWith('edit_')) {
+    const txId = data.split('_')[1];
+
+    const uniqueL1 = Object.keys(allCategories);
+    const keyboard = uniqueL1.map((l1, idx) => ([{ 
+      text: `📂 ${l1}`, 
+      callback_data: `e2|${txId}|${idx}` 
+    }]));
+
+    await editMessageText(env, chatId, messageId, `✏️ <b>Đang sửa giao dịch...</b>\n\nHãy chọn <b>Danh mục Cấp 1</b> mới:`, { inline_keyboard: keyboard });
+    return;
+  }
+
+  // NÚT QUAY LẠI DANH MỤC CẤP 1 (Khi người dùng bấm nút Quay lại ở tầng Cấp 2)
+  if (data.startsWith('back_l1|')) {
+    const txId = data.split('|')[1];
+    
+    const uniqueL1 = Object.keys(allCategories);
+    const keyboard = uniqueL1.map((l1, idx) => ([{ 
+      text: `📂 ${l1}`, 
+      callback_data: `e2|${txId}|${idx}` 
+    }]));
+
+    await editMessageText(env, chatId, messageId, `👇 Hãy chọn <b>Danh mục Cấp 1</b>:`, { inline_keyboard: keyboard });
+    return;
+  }
+
+  // 2. HIỂN THỊ DANH MỤC CẤP 2 (Sau khi đã chọn Cấp 1)
+  if (data.startsWith('e2|')) {
+    const parts = data.split('|');
+    const txId = parts[1];
+    const l1Idx = parseInt(parts[2]);
+
+    const uniqueL1 = Object.keys(allCategories);
+    const fullL1Key = uniqueL1[l1Idx];
+    if (!fullL1Key) return;
+
+    const uniqueL2 = allCategories[fullL1Key] || [];
+    const keyboard = [];
+    let row = [];
+    
+    uniqueL2.forEach((l2, l2Idx) => {
+      // Truyền thông tin es | id giao dịch | vị trí cấp 1 | vị trí cấp 2
+      row.push({ 
+        text: l2, 
+        callback_data: `es|${txId}|${l1Idx}|${l2Idx}` 
+      });
+      
+      if (row.length === 2 || l2Idx === uniqueL2.length - 1) {
+        keyboard.push(row);
+        row = [];
+      }
+    });
+
+    // Tích hợp thanh điều hướng: Quay lại & Thêm mới/Khác xuống cuối menu
+    keyboard.push([
+      { text: '🔙 Quay lại', callback_data: `back_l1|${txId}` },
+      { text: '➕ Thêm mới/Khác', callback_data: `add_l2|${txId}` }
+    ]);
+
+    await editMessageText(env, chatId, messageId, `📂 Đã chọn: <b>${fullL1Key}</b>\n\n👇 Hãy chọn tiếp <b>Danh mục Cấp 2</b>:`, { inline_keyboard: keyboard });
+    return;
+  }
+
+  // 3. HÀNH ĐỘNG TIẾP THEO: XÁC NHẬN LƯU KHI CHỌN DANH MỤC CẤP 2
+  if (data.startsWith('es|')) {
+    const parts = data.split('|');
+    const txId = parts[1];
+    const l1Idx = parseInt(parts[2]);
+    const l2Idx = parseInt(parts[3]);
+
+    // Dựa vào Index để giải mã ngược lại tên danh mục đầy đủ
+    const uniqueL1 = Object.keys(allCategories);
+    const fullL1 = uniqueL1[l1Idx];
+    const fullL2 = allCategories[fullL1]?.[l2Idx];
+
+    if (!fullL1 || !fullL2) return;
+
+    // Gửi lệnh PATCH để cập nhật trực tiếp danh mục mới vào Supabase
+    await supabaseFetch(env, `transactions?id=eq.${txId}`, 'PATCH', {
+      level1: fullL1,
+      level2: fullL2
+    });
+
+    // Cập nhật lại tin nhắn thông báo thành công rực rỡ
+    await editMessageText(env, chatId, messageId, `✅ <b>Cập nhật danh mục thành công!</b>\n\n📂 Danh mục mới: <b>${fullL1} ➡️ ${fullL2}</b>\n\n<i>Dancin MMAA đã đồng bộ dữ liệu chuẩn xác vào hệ thống!</i>`);
+    return;
+  }
+
+  // 4. XỬ LÝ KHI BẤM NÚT "THÊM MỚI/KHÁC"
+  if (data.startsWith('add_l2|')) {
+    const txId = data.split('|')[1];
+
+    // Lúc này mới chính thức XÓA giao dịch cũ trên Supabase vì người dùng muốn hủy hẳn để làm lại
+    await supabaseFetch(env, `transactions?id=eq.${txId}`, 'DELETE');
+
+    await editMessageText(env, chatId, messageId, `🗑️ <b>Đã hủy giao dịch cũ phân loại sai!</b>\n\n✍️ Giờ bạn hãy nhập chữ hoặc gửi voice lại một câu giao dịch mới (Ví dụ: "Ăn phở gà 50k ví tiền mặt") để mình xử lý lại từ đầu nhé.`);
+    return;
+  }
+}

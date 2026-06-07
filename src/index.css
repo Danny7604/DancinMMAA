@@ -1,0 +1,136 @@
+@import "tailwindcss";
+
+@variant dark (&:where(.dark, .dark *));
+
+/* Thiết lập các biến màu sắc và giao diện mặc định (Premium Warm/Glassmorphic) */
+:root {
+  --color-primary: #111827; /* Dark Charcoal */
+  --color-primary-glow: rgba(17, 24, 39, 0.08);
+  --color-success: #15803d; /* Forest Green */
+  --color-danger: #b91c1c; /* Brick Red */
+  --color-warning: #b45309; /* Warm Amber */
+  
+  /* Telegram theme override variables (will be updated dynamically via JS if in Telegram) */
+  --tg-bg-color: #161412; /* Warm Charcoal fallback */
+  --tg-secondary-bg-color: #1f1c19; /* Warm Dark Clay fallback */
+  --tg-text-color: #FAF6F0; /* Cream white fallback */
+  --tg-hint-color: #75777F; /* Slate gray fallback */
+  --tg-link-color: #111827;
+  --tg-button-color: #111827;
+  --tg-button-text-color: #FAF6F0;
+  --color-chart-3d: #e3dbd3;
+}
+
+.dark {
+  --color-chart-3d: #0e0c0b;
+}
+
+/* Glassmorphism utility classes */
+.glass-panel {
+  background: rgba(253, 251, 247, 0.8);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(35, 22, 4, 0.08);
+}
+.dark .glass-panel {
+  background: rgba(31, 28, 25, 0.7);
+  border: 1px solid rgba(250, 246, 240, 0.08);
+}
+
+.glass-panel-light {
+  background: rgba(35, 22, 4, 0.03);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(35, 22, 4, 0.04);
+}
+.dark .glass-panel-light {
+  background: rgba(250, 246, 240, 0.05);
+  border: 1px solid rgba(250, 246, 240, 0.04);
+}
+
+.glass-input {
+  background: rgba(253, 251, 247, 0.9);
+  border: 1px solid rgba(35, 22, 4, 0.08);
+  color: #111827;
+  transition: all 0.2s ease-in-out;
+}
+.dark .glass-input {
+  background: rgba(31, 28, 25, 0.6);
+  border: 1px solid rgba(250, 246, 240, 0.08);
+  color: #FAF6F0;
+}
+
+.glass-input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-glow);
+}
+
+.glass-card {
+  background: linear-gradient(135deg, rgba(253, 251, 247, 0.85) 0%, rgba(245, 240, 230, 0.95) 100%);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(35, 22, 4, 0.06);
+  box-shadow: 0 8px 32px 0 rgba(35, 22, 4, 0.06);
+}
+.dark .glass-card {
+  background: linear-gradient(135deg, rgba(31, 28, 25, 0.75) 0%, rgba(22, 20, 18, 0.85) 100%);
+  border: 1px solid rgba(250, 246, 240, 0.06);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
+}
+
+/* Hide scrollbar for Chrome, Safari and Opera */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Hide scrollbar for IE, Edge and Firefox */
+.no-scrollbar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+/* Glow effects */
+.glow-primary {
+  box-shadow: 0 0 20px rgba(17, 24, 39, 0.15);
+}
+
+.glow-success {
+  box-shadow: 0 0 20px rgba(16, 185, 129, 0.15);
+}
+
+.glow-danger {
+  box-shadow: 0 0 20px rgba(239, 68, 68, 0.15);
+}
+
+/* Custom animations */
+@keyframes pulse-slow {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+.animate-pulse-slow {
+  animation: pulse-slow 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes slide-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.15s ease-out forwards;
+}
