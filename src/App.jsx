@@ -235,9 +235,10 @@ export default function App() {
     triggerHaptic('medium');
     const tg = window.Telegram?.WebApp;
     if (tg) {
+      tg.openTelegramLink("https://t.me/Dancin_quanlychitieu_bot");
       tg.close();
     } else {
-      alert("Tính năng này chỉ hoạt động khi chạy trong Telegram Mini App.");
+      window.open("https://t.me/Dancin_quanlychitieu_bot", "_blank");
     }
   };
 
@@ -510,15 +511,6 @@ export default function App() {
             className="p-2 rounded-xl bg-stone-100 dark:bg-stone-900/60 border border-stone-200/60 dark:border-stone-800/40 text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-white transition-colors"
           >
             <Icons.RefreshCw className="w-4 h-4" />
-          </button>
-
-          {/* Close Mini App */}
-          <button 
-            onClick={handleCloseWebApp}
-            className="p-2 rounded-xl bg-stone-100 dark:bg-stone-900/60 border border-stone-200/60 dark:border-stone-850/40 text-stone-500 dark:text-stone-400 hover:text-rose-500 dark:hover:text-rose-400 transition-colors"
-            title="Đóng Mini App"
-          >
-            <Icons.X className="w-4 h-4" />
           </button>
         </div>
       </header>
