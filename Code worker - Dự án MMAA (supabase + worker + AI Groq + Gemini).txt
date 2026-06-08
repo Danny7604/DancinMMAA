@@ -454,6 +454,9 @@ async function processTransaction(chatId, text, env, userName) {
   ${incomeStructure}
   - Nguồn tiền: ${accountsList || 'Tiền mặt'}
 
+  LƯU Ý ĐẶC BIỆT KHI PHÂN LOẠI:
+  - Nếu giao dịch liên quan đến "Cafe/Coffee" nhưng có mục đích/ghi chú là đi làm việc, gặp đối tác, trao đổi công việc, họp hành, học tập, v.v., bạn BẮT BUỘC phải phân loại vào "Chi phí phát sinh" (level1) ➡️ "Công việc" (level2), thay vì "Chi phí sinh hoạt" ➡️ "Coffee".
+
   Trả về JSON Schema:
   {
     "action": "transaction",
