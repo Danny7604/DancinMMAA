@@ -295,15 +295,15 @@ export default function SettingsTab({
         <div className="space-y-6 animate-fade-in">
           {/* Subtitle */}
           <div className="text-left">
-            <h3 className="text-sm font-black text-[#111827] dark:text-white uppercase tracking-wider">Cài đặt tài chính</h3>
-            <span className="text-[10px] text-stone-400 dark:text-stone-500 font-bold uppercase tracking-wide">Quản lý mục tiêu và phân bổ ngân sách</span>
+            <h3 className="text-base font-black text-[#111827] dark:text-white tracking-tight">Cài đặt tài chính</h3>
+            <span className="text-[10px] text-stone-400 dark:text-stone-500 font-semibold tracking-wide block mt-1">Quản lý mục tiêu và phân bổ ngân sách</span>
           </div>
 
           {/* Section 0: Wallet Management Mode Toggle */}
           <div className="bg-white dark:bg-stone-900 border border-stone-200/60 dark:border-stone-800/40 rounded-3xl p-5 shadow-sm space-y-3">
             <div className="flex justify-between items-center">
               <div className="flex items-center gap-1.5">
-                <h4 className="text-xs font-black text-[#111827] dark:text-white uppercase tracking-wider">Chế độ quản trị ví</h4>
+                <h4 className="text-xs font-extrabold text-[#111827] dark:text-white tracking-tight">Chế độ quản trị ví</h4>
                 <button 
                   type="button"
                   onClick={() => {
@@ -323,19 +323,19 @@ export default function SettingsTab({
                   const newMode = walletMode === 'normal' ? 'advanced' : 'normal';
                   if (onUpdateWalletMode) onUpdateWalletMode(newMode);
                 }}
-                className="relative w-24 h-7 bg-stone-100 dark:bg-stone-800/80 rounded-full p-0.5 transition-colors duration-300 focus:outline-none border border-stone-200/60 dark:border-stone-700/60 flex-shrink-0"
+                className="relative w-28 h-7.5 bg-stone-100 dark:bg-stone-800/80 rounded-full p-0.5 transition-colors duration-300 focus:outline-none border border-stone-200/60 dark:border-stone-700/60 flex-shrink-0"
               >
                 {/* Sliding block */}
                 <div 
-                  className={`absolute top-0.5 bottom-0.5 left-0.5 w-[44px] rounded-full shadow-sm transition-transform duration-300 ease-out ${
+                  className={`absolute top-0.5 bottom-0.5 left-0.5 w-[51px] rounded-full shadow-sm transition-transform duration-300 ease-out ${
                     walletMode === 'advanced' 
-                      ? 'translate-x-[45px] bg-indigo-600 dark:bg-indigo-500' 
+                      ? 'translate-x-[56px] bg-indigo-600 dark:bg-indigo-500' 
                       : 'translate-x-0 bg-stone-950 dark:bg-stone-100'
                   }`}
                 />
-                <div className="absolute inset-0 flex justify-between items-center px-3 pointer-events-none text-[8px] font-black uppercase tracking-wider">
-                  <span className={`${walletMode === 'normal' ? 'text-white dark:text-stone-950' : 'text-stone-450 dark:text-stone-500'} transition-colors duration-300 z-10`}>Thường</span>
-                  <span className={`${walletMode === 'advanced' ? 'text-white dark:text-white' : 'text-stone-450 dark:text-stone-500'} transition-colors duration-300 z-10`}>N.Cao</span>
+                <div className="absolute inset-0 flex justify-between items-center px-3.5 pointer-events-none text-[9.5px] font-extrabold tracking-tight">
+                  <span className={`${walletMode === 'normal' ? 'text-white dark:text-stone-950' : 'text-stone-500 dark:text-stone-400'} transition-colors duration-300 z-10`}>Thường</span>
+                  <span className={`${walletMode === 'advanced' ? 'text-white dark:text-stone-950' : 'text-stone-500 dark:text-stone-400'} transition-colors duration-300 z-10`}>N.Cao</span>
                 </div>
               </button>
             </div>
@@ -349,7 +349,7 @@ export default function SettingsTab({
           {/* Section 1: Savings Targets list with sliders */}
           <div className="bg-white dark:bg-stone-900 border border-stone-200/60 dark:border-stone-800/40 rounded-3xl p-5 shadow-sm space-y-4">
             <div className="flex justify-between items-center mb-1">
-              <h4 className="text-xs font-black text-[#111827] dark:text-white uppercase tracking-wider">Quỹ tiết kiệm</h4>
+              <h4 className="text-xs font-extrabold text-[#111827] dark:text-white tracking-tight">Quỹ tiết kiệm</h4>
               <button 
                 onClick={() => { triggerHaptic('light'); alert('Chức năng thêm quỹ sẽ ra mắt trong bản cập nhật kế tiếp.'); }}
                 className="text-[10px] font-bold text-white dark:text-stone-950 bg-stone-950 dark:bg-slate-100 px-2 py-1 rounded-lg hover:scale-105"
@@ -395,7 +395,7 @@ export default function SettingsTab({
           {/* Section 2: Spending Limits */}
           <div className="bg-white dark:bg-stone-900 border border-stone-200/60 dark:border-stone-800/40 rounded-3xl p-5 shadow-sm space-y-4">
             <div className="flex justify-between items-center mb-1">
-              <h4 className="text-xs font-black text-[#111827] dark:text-white uppercase tracking-wider">Hạn mức chi tiêu</h4>
+              <h4 className="text-xs font-extrabold text-[#111827] dark:text-white tracking-tight">Hạn mức chi tiêu</h4>
               <button 
                 onClick={() => {
                   triggerHaptic('light');
@@ -465,7 +465,7 @@ export default function SettingsTab({
           {/* Section 3: 6 Jars Sliders distribution */}
           <div className="bg-white dark:bg-stone-900 border border-stone-200/60 dark:border-stone-800/40 rounded-3xl p-5 shadow-sm space-y-4">
             <div className="flex justify-between items-center mb-1">
-              <h4 className="text-xs font-black text-[#111827] dark:text-white uppercase tracking-wider">Phân bổ 6 hũ</h4>
+              <h4 className="text-xs font-extrabold text-[#111827] dark:text-white tracking-tight">Phân bổ 6 hũ</h4>
               <span className={`text-xs font-black px-2 py-0.5 rounded-full ${
                 totalJarsPercentage === 100 
                   ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' 

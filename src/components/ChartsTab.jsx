@@ -148,8 +148,8 @@ export default function ChartsTab({
       {/* 2. Income Structure Donut Card */}
       <div className="bg-white dark:bg-stone-900 border border-stone-200/60 dark:border-stone-800/40 rounded-3xl p-5 shadow-sm">
         <div className="flex justify-between items-center mb-1">
-          <h3 className="text-sm font-black text-[#111827] dark:text-white uppercase tracking-wider">
-            CƠ CẤU THU NHẬP
+          <h3 className="text-xs font-extrabold text-[#111827] dark:text-white tracking-tight">
+            Cơ cấu thu nhập
           </h3>
           <div className="flex gap-2 relative">
             <button 
@@ -199,8 +199,8 @@ export default function ChartsTab({
 
         {/* Total Summary Block at the top */}
         <div className="mt-2 mb-6">
-          <span className="text-[10px] text-stone-400 dark:text-stone-500 font-extrabold uppercase tracking-wider block">
-            {incomeL1Filter === 'all' ? 'TỔNG THU' : `TỔNG THU (${incomeL1Filter})`}
+          <span className="text-[10px] text-stone-500 dark:text-stone-400 font-extrabold block tracking-wide">
+            {incomeL1Filter === 'all' ? 'Tổng thu' : `Tổng thu (${incomeL1Filter})`}
           </span>
           <span className="text-3xl font-black text-[#111827] dark:text-white leading-none block mt-1.5">
             {filteredIncomeSum.toLocaleString('vi-VN')} đ
@@ -226,8 +226,8 @@ export default function ChartsTab({
       {/* 3. Expense Allocation Donut Card */}
       <div className="bg-white dark:bg-stone-900 border border-stone-200/60 dark:border-stone-800/40 rounded-3xl p-5 shadow-sm">
         <div className="flex justify-between items-center mb-1">
-          <h3 className="text-sm font-black text-[#111827] dark:text-white uppercase tracking-wider">
-            PHÂN BỔ CHI TIÊU
+          <h3 className="text-xs font-extrabold text-[#111827] dark:text-white tracking-tight">
+            Phân bổ chi tiêu
           </h3>
           <div className="flex gap-2 relative">
             <button 
@@ -277,8 +277,8 @@ export default function ChartsTab({
 
         {/* Total Summary Block at the top */}
         <div className="mt-2 mb-6">
-          <span className="text-[10px] text-stone-400 dark:text-stone-500 font-extrabold uppercase tracking-wider block">
-            {expenseL1Filter === 'all' ? 'TỔNG CHI' : `TỔNG CHI (${expenseL1Filter})`}
+          <span className="text-[10px] text-stone-500 dark:text-stone-400 font-extrabold block tracking-wide">
+            {expenseL1Filter === 'all' ? 'Tổng chi' : `Tổng chi (${expenseL1Filter})`}
           </span>
           <span className="text-3xl font-black text-[#111827] dark:text-white leading-none block mt-1.5">
             {filteredExpenseSum.toLocaleString('vi-VN')} đ
