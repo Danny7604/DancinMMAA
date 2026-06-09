@@ -528,6 +528,7 @@ export default function App() {
             onUpdateWalletBalance={handleUpdateWalletBalance}
             onSelectTransaction={setSelectedTransaction}
             triggerHaptic={triggerHaptic}
+            onViewAll={() => setActiveTab('history')}
           />
         )}
 

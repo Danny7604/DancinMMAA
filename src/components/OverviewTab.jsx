@@ -10,6 +10,7 @@ export default function OverviewTab({
   onUpdateWalletBalance,
   onSelectTransaction,
   triggerHaptic,
+  onViewAll,
 }) {
   const [typeFilter, setTypeFilter] = useState('all'); // all, thu, chi
 
@@ -179,7 +180,10 @@ export default function OverviewTab({
             Giao dịch gần đây
           </h3>
           <button 
-            onClick={() => { triggerHaptic('light'); alert('Chuyên sang Tab Lịch Sử để xem chi tiết.'); }}
+            onClick={() => { 
+              triggerHaptic('light'); 
+              if (onViewAll) onViewAll();
+            }}
             className="text-xs text-stone-500 dark:text-stone-400 font-bold hover:text-stone-800"
           >
             Xem tất cả
