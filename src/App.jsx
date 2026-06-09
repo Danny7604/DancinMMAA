@@ -12,6 +12,43 @@ import WalletModeGuideModal from './components/WalletModeGuideModal';
 // --- MOCK TRANSACTION HISTORY DATABASE ---
 const MOCK_HISTORICAL_TRANSACTIONS = [];
 
+const DEFAULT_CATEGORY_JARS = {
+  // Chi phí sinh hoạt
+  'Ăn uống': 'nec',
+  'Coffee': 'play',
+  'Mua sắm gia đình': 'nec',
+  'Online shopping': 'nec',
+  'Dating': 'play',
+  'Pet': 'nec',
+  'Thể thao': 'nec',
+  'Di chuyển': 'nec',
+  'Game': 'play',
+  
+  // Chi phí cố định
+  'Tiền thuê nhà': 'nec',
+  'Điện nước': 'nec',
+  'Internet': 'nec',
+  'Bảo hiểm': 'nec',
+  'Học phí': 'edu',
+  
+  // Chi phí phát sinh
+  'Nhậu': 'play',
+  'Đám tiệc': 'play',
+  'Quà cáp': 'give',
+  'Y tế': 'nec',
+  'Du lịch': 'play',
+  'Sửa xe': 'nec',
+  'Household': 'nec',
+  'Công việc': 'edu',
+  'Tín dụng': 'nec',
+  'Cho mượn': 'give',
+  
+  // Đầu tư - Tiết kiệm
+  'Quỹ tiết kiệm': 'ltss',
+  'Chứng khoán / Vàng': 'ffa',
+  'Quỹ khác': 'ffa'
+};
+
 // Helper to parse DD/MM/YYYY into date
 const parseDateStr = (str) => {
   if (!str) return null;
@@ -50,6 +87,27 @@ export default function App() {
     setWalletMode(mode);
     localStorage.setItem('dancin-wallet-mode', mode);
     setIsModeGuideOpen(true); // Auto-open guide on mode change
+  };
+
+  // 6 Jars category mapping state
+  const [categoryJars, setCategoryJars] = useState(() => {
+    const saved = localStorage.getItem('dancin-category-jars');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error("Error parsing category jars mapping:", e);
+      }
+    }
+    return DEFAULT_CATEGORY_JARS;
+  });
+
+  const handleUpdateCategoryJar = (categoryName, jarId) => {
+    setCategoryJars(prev => {
+      const updated = { ...prev, [categoryName]: jarId };
+      localStorage.setItem('dancin-category-jars', JSON.stringify(updated));
+      return updated;
+    });
   };
 
   // Theme state
@@ -580,6 +638,7 @@ export default function App() {
             transactions={data.transactions}
             monthlyIncome={data.monthly_income}
             triggerHaptic={triggerHaptic}
+            categoryJars={categoryJars}
           />
         )}
 
@@ -710,6 +769,8 @@ export default function App() {
             walletMode={walletMode}
             onUpdateWalletMode={handleUpdateWalletMode}
             onOpenModeGuide={() => setIsModeGuideOpen(true)}
+            categoryJars={categoryJars}
+            onUpdateCategoryJar={handleUpdateCategoryJar}
           />
         )}
       </main>

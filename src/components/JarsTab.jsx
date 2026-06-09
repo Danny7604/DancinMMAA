@@ -17,11 +17,13 @@ export default function JarsTab({
   transactions = [],
   monthlyIncome = 0,
   triggerHaptic,
+  categoryJars = {},
 }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newGoal, setNewGoal] = useState({ name: '', target: '', current: '0', image: '💰', note: '' });
   const [isLimitModalOpen, setIsLimitModalOpen] = useState(false);
   const [newLimit, setNewLimit] = useState({ name: '', target: '' });
+  const [expandedJar, setExpandedJar] = useState(null);
 
   const formatVND = (val) => val.toLocaleString('vi-VN') + 'đ';
 
@@ -38,6 +40,15 @@ export default function JarsTab({
   const getJarForTransaction = (t) => {
     const l1 = t.level1 || '';
     const l2 = t.level2 || '';
+
+    // First check user's custom mapping
+    if (categoryJars && categoryJars[l2]) {
+      return categoryJars[l2];
+    }
+    if (categoryJars && categoryJars[l1]) {
+      return categoryJars[l1];
+    }
+
     const l1Lower = l1.toLowerCase();
     const l2Lower = l2.toLowerCase();
 
@@ -219,12 +230,24 @@ export default function JarsTab({
           </button>
         </div>
 
-        <div className="space-y-5">
+        <div className="space-y-4">
           {jars.map(jar => {
             // Calculate percentage used of the monthly budget allocated
             const usedPercent = jar.targetVal > 0 ? Math.min(Math.round((jar.currentVal / jar.targetVal) * 100), 100) : 0;
+            const isExpanded = expandedJar === jar.id;
+            const mappedSubcategories = Object.keys(categoryJars).filter(
+              subCatName => categoryJars[subCatName] === jar.id
+            );
+
             return (
-              <div key={jar.id} className="space-y-1.5">
+              <div 
+                key={jar.id} 
+                className="space-y-1.5 p-3 -mx-3 rounded-2xl hover:bg-stone-50 dark:hover:bg-stone-850/20 transition-all cursor-pointer select-none active:scale-[0.99] border border-transparent hover:border-stone-150 dark:hover:border-stone-800/40"
+                onClick={() => {
+                  triggerHaptic('light');
+                  setExpandedJar(expandedJar === jar.id ? null : jar.id);
+                }}
+              >
                 <div className="flex items-center justify-between text-xs">
                   <div className="flex items-center gap-2.5">
                     <div className="w-8 h-8 rounded-lg bg-stone-100 dark:bg-stone-800/60 flex items-center justify-center">
@@ -232,10 +255,10 @@ export default function JarsTab({
                     </div>
                     <span className="font-extrabold text-[#111827] dark:text-white">{jar.name}</span>
                   </div>
-                  <div className="text-right">
+                  <div className="text-right flex flex-col justify-center items-end">
                     <span className="font-bold text-emerald-600 dark:text-emerald-400">{usedPercent}% used</span>
-                    <span className="text-[10px] text-stone-400 dark:text-stone-500 block font-medium">
-                      Cần {formatVND(jar.targetVal)}
+                    <span className="text-[10px] text-stone-400 dark:text-stone-500 block font-medium mt-0.5">
+                      Chi: {formatVND(jar.currentVal)} / {formatVND(jar.targetVal)}
                     </span>
                   </div>
                 </div>
@@ -246,6 +269,35 @@ export default function JarsTab({
                     style={{ width: `${usedPercent}%` }}
                   />
                 </div>
+
+                {/* Expanded Breakdown */}
+                {isExpanded && (
+                  <div className="mt-3 pl-10.5 pr-2.5 space-y-2 border-l-2 border-stone-200 dark:border-stone-800 ml-4 animate-fade-in text-left">
+                    <span className="text-[9px] text-stone-400 dark:text-stone-500 font-extrabold uppercase tracking-wide block mb-1">
+                      Danh mục liên kết:
+                    </span>
+                    {mappedSubcategories.length === 0 ? (
+                      <span className="text-[10.5px] text-stone-450 font-medium italic block py-0.5">
+                        Chưa có danh mục nào được liên kết với hũ này.
+                      </span>
+                    ) : (
+                      mappedSubcategories.map((subCat) => {
+                        const spent = getCategorySpentThisMonth(subCat);
+                        return (
+                          <div key={subCat} className="flex justify-between items-center text-[11px] font-semibold text-stone-700 dark:text-stone-300">
+                            <span>{subCat}</span>
+                            <span className="font-extrabold text-stone-900 dark:text-stone-100">
+                              {formatVND(spent)}
+                            </span>
+                          </div>
+                        );
+                      })
+                    )}
+                    <span className="text-[8.5px] text-stone-400 dark:text-stone-500 font-bold block pt-1.5 border-t border-dashed border-stone-150 dark:border-stone-800/40 mt-1">
+                      💡 Mẹo: Bạn có thể đổi hũ của danh mục tại tab "Cài đặt danh mục"
+                    </span>
+                  </div>
+                )}
               </div>
             );
           })}

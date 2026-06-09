@@ -13,6 +13,8 @@ export default function SettingsTab({
   walletMode = 'normal',
   onUpdateWalletMode,
   onOpenModeGuide,
+  categoryJars = {},
+  onUpdateCategoryJar,
 }) {
   const [activeSubTab, setActiveSubTab] = useState('categories'); // categories, finance
   const [categoryType, setCategoryType] = useState('expense'); // expense, income
@@ -267,6 +269,23 @@ export default function SettingsTab({
                             <span>{subCat.name}</span>
                           </div>
                           <div className="flex items-center gap-2 text-stone-400 dark:text-stone-500">
+                            {categoryType === 'expense' && (
+                              <select
+                                value={categoryJars[subCat.name] || 'nec'}
+                                onChange={(e) => {
+                                  triggerHaptic('light');
+                                  if (onUpdateCategoryJar) onUpdateCategoryJar(subCat.name, e.target.value);
+                                }}
+                                className="text-[9.5px] font-extrabold bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700/60 rounded-lg px-2 py-0.5 text-stone-600 dark:text-stone-300 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer mr-1"
+                              >
+                                <option value="nec">Hũ Thiết yếu</option>
+                                <option value="edu">Hũ Giáo dục</option>
+                                <option value="ltss">Hũ Tiết kiệm</option>
+                                <option value="play">Hũ Hưởng thụ</option>
+                                <option value="ffa">Hũ Đầu tư</option>
+                                <option value="give">Hũ Cho đi</option>
+                              </select>
+                            )}
                             <button className="hover:text-indigo-500 p-1"><Icons.Edit2 className="w-3.5 h-3.5" /></button>
                             <button className="hover:text-rose-500 p-1"><Icons.Trash2 className="w-3.5 h-3.5" /></button>
                           </div>
