@@ -42,10 +42,16 @@ export default function WalletDetailSheet({ wallet, onClose, onUpdateWallet, tri
 
   const handleSave = () => {
     triggerHaptic('medium');
+    const isCredit = wallet.account_type === 'tin_dung';
     const parsedBalance = parseInt(balance.replace(/[^0-9-]/g, ''), 10);
     
     if (isNaN(parsedBalance)) {
       alert("Số dư không hợp lệ! Vui lòng nhập số nguyên.");
+      return;
+    }
+
+    if (!isCredit && parsedBalance < 0) {
+      alert("Số dư ví Tiền mặt hoặc tài khoản Ngân hàng không thể âm!");
       return;
     }
 
@@ -141,7 +147,10 @@ export default function WalletDetailSheet({ wallet, onClose, onUpdateWallet, tri
                 type="text"
                 value={balance}
                 onChange={(e) => {
-                  const cleaned = e.target.value.replace(/[^0-9-]/g, '');
+                  const isCredit = wallet.account_type === 'tin_dung';
+                  const cleaned = isCredit 
+                    ? e.target.value.replace(/[^0-9-]/g, '') 
+                    : e.target.value.replace(/[^0-9]/g, '');
                   setBalance(cleaned);
                 }}
                 placeholder="Nhập số dư ví..."
