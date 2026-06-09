@@ -68,7 +68,9 @@ export default {
 
           const now = new Date();
           const currentMonth = ("0" + (now.getMonth() + 1)).slice(-2) + "/" + now.getFullYear();
-          const txs = await supabaseFetch(env, `transactions?chat_id=eq.${chatId}&date=ilike.%25${currentMonth}&order=created_at.desc`);
+          
+          // Lấy toàn bộ giao dịch của user (sắp xếp mới nhất lên đầu)
+          const txs = await supabaseFetch(env, `transactions?chat_id=eq.${chatId}&order=created_at.desc`);
 
           let monthlyIncome = 0;
           let monthlyExpense = 0;
@@ -76,12 +78,16 @@ export default {
 
           txs?.forEach(tx => {
             const amount = parseInt(tx.amount || 0);
-            if (tx.type === 'thu') {
-              monthlyIncome += amount;
-            } else if (tx.type === 'chi') {
-              monthlyExpense += amount;
-              if (!expenseByCategory[tx.level1]) expenseByCategory[tx.level1] = 0;
-              expenseByCategory[tx.level1] += amount;
+            // Chỉ tính toán thu/chi của tháng hiện tại cho phần Dashboard
+            const isCurrentMonth = tx.date && tx.date.endsWith(currentMonth);
+            if (isCurrentMonth) {
+              if (tx.type === 'thu') {
+                monthlyIncome += amount;
+              } else if (tx.type === 'chi') {
+                monthlyExpense += amount;
+                if (!expenseByCategory[tx.level1]) expenseByCategory[tx.level1] = 0;
+                expenseByCategory[tx.level1] += amount;
+              }
             }
           });
 
