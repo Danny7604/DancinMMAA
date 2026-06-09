@@ -7,7 +7,7 @@ export default function OverviewTab({
   monthlyExpense = 3450000,
   transactions = [],
   wallets = [],
-  onUpdateWalletBalance,
+  onSelectWalletToEdit,
   onSelectTransaction,
   triggerHaptic,
   onViewAll,
@@ -136,27 +136,13 @@ export default function OverviewTab({
                 className={cardClass}
                 onClick={() => {
                   triggerHaptic('medium');
-                  const input = prompt(
-                    `Nhập số dư mới cho ví "${wallet.account_name}" (đơn vị: VNĐ):`, 
-                    wallet.balance
-                  );
-                  if (input === null) return;
-                  
-                  const cleaned = input.replace(/[^0-9-]/g, '');
-                  const newBalance = parseInt(cleaned, 10);
-                  
-                  if (isNaN(newBalance)) {
-                    alert("Số dư không hợp lệ! Vui lòng nhập số nguyên.");
-                    return;
-                  }
-                  
-                  if (onUpdateWalletBalance) {
-                    onUpdateWalletBalance(wallet.id, newBalance);
+                  if (onSelectWalletToEdit) {
+                    onSelectWalletToEdit(wallet);
                   }
                 }}
               >
-                {isCash && (
-                  <span className="absolute top-4 right-4 text-[9px] font-bold text-stone-400 dark:text-stone-500 uppercase">
+                {wallet.is_default && (
+                  <span className="absolute top-4 right-4 text-[9px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-500/15 border border-indigo-500/20 px-2 py-0.5 rounded-full uppercase tracking-wider scale-90">
                     Mặc định
                   </span>
                 )}

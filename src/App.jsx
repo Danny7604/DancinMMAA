@@ -6,6 +6,7 @@ import ChartsTab from './components/ChartsTab';
 import SettingsTab from './components/SettingsTab';
 import FilterDrawer from './components/FilterDrawer';
 import TransactionDetailSheet from './components/TransactionDetailSheet';
+import WalletDetailSheet from './components/WalletDetailSheet';
 
 // --- MOCK TRANSACTION HISTORY DATABASE ---
 const MOCK_HISTORICAL_TRANSACTIONS = [];
@@ -24,6 +25,7 @@ export default function App() {
 
   // Wallets state - dynamic from database, starts empty
   const [wallets, setWallets] = useState([]);
+  const [editingWallet, setEditingWallet] = useState(null);
   
   // Navigation Tabs state
   const [activeTab, setActiveTab] = useState('overview'); // overview, jars, charts, history, settings
@@ -242,17 +244,27 @@ export default function App() {
     }
   };
 
-  const handleUpdateWalletBalance = async (walletId, newBalance) => {
+  const handleUpdateWallet = async (walletId, fields) => {
     // 1. Optimistic UI update
     setWallets(prevWallets => {
-      const updated = prevWallets.map(w => w.id === walletId ? { ...w, balance: newBalance } : w);
+      const updated = prevWallets.map(w => {
+        if (w.id === walletId) {
+          return { ...w, ...fields };
+        }
+        if (fields.is_default === true) {
+          return { ...w, is_default: false };
+        }
+        return w;
+      });
       // Recalculate total balance
       const newTotal = updated.reduce((sum, w) => sum + parseInt(w.balance || 0), 0);
       setData(prevData => prevData ? { ...prevData, total_balance: newTotal } : null);
       return updated;
     });
 
-    // 2. Send PATCH API request to update wallet balance on Supabase DB
+    // 2. Send PATCH API request to update wallet in Supabase DB
+    const tg = window.Telegram?.WebApp;
+    const chatId = tg?.initDataUnsafe?.user?.id || '1458262316';
     const workerUrl = 'https://dancin-quanlychitieu.thuongvn-work.workers.dev';
     try {
       const response = await fetch(`${workerUrl}/api/wallets`, {
@@ -260,16 +272,27 @@ export default function App() {
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ id: walletId, balance: newBalance })
+        body: JSON.stringify({ id: walletId, ...fields })
       });
 
       if (!response.ok) {
-        throw new Error('Server returned error status');
+        throw new Error('Server error');
       }
       triggerHaptic('success');
+
+      // Reload wallets list from server to ensure everything is perfectly synced (e.g. is_default switches on other rows)
+      fetch(`${workerUrl}/api/wallets?chat_id=${chatId}`)
+        .then(res => res.json())
+        .then(walletsList => {
+          if (Array.isArray(walletsList) && walletsList.length > 0) {
+            setWallets(walletsList);
+            const newTotal = walletsList.reduce((sum, w) => sum + parseInt(w.balance || 0), 0);
+            setData(prevData => prevData ? { ...prevData, total_balance: newTotal } : null);
+          }
+        });
     } catch (err) {
-      console.error("Lỗi cập nhật số dư ví:", err);
-      alert("Không thể đồng bộ số dư mới lên máy chủ. Số dư đang được cập nhật tạm thời trên thiết bị.");
+      console.error("Lỗi cập nhật ví:", err);
+      alert("Không thể đồng bộ thay đổi lên máy chủ. Thay đổi đang được áp dụng tạm thời trên thiết bị.");
     }
   };
 
@@ -525,7 +548,7 @@ export default function App() {
             monthlyExpense={data.monthly_expense}
             transactions={data.transactions}
             wallets={wallets}
-            onUpdateWalletBalance={handleUpdateWalletBalance}
+            onSelectWalletToEdit={setEditingWallet}
             onSelectTransaction={setSelectedTransaction}
             triggerHaptic={triggerHaptic}
             onViewAll={() => setActiveTab('history')}
@@ -723,6 +746,15 @@ export default function App() {
         <TransactionDetailSheet
           transaction={selectedTransaction}
           onClose={() => setSelectedTransaction(null)}
+        />
+      )}
+
+      {editingWallet && (
+        <WalletDetailSheet
+          wallet={editingWallet}
+          onClose={() => setEditingWallet(null)}
+          onUpdateWallet={handleUpdateWallet}
+          triggerHaptic={triggerHaptic}
         />
       )}
 

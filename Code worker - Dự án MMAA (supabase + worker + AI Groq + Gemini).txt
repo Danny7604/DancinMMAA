@@ -43,10 +43,28 @@ export default {
       if (url.pathname === '/api/wallets' && request.method === 'PATCH') {
         try {
           const body = await request.json();
-          if (!body.id || body.balance === undefined) {
-            return new Response(JSON.stringify({ error: "Invalid payload" }), { status: 400, headers });
+          if (!body.id) {
+            return new Response(JSON.stringify({ error: "Missing account ID" }), { status: 400, headers });
           }
-          const updateRes = await supabaseFetch(env, `accounts?id=eq.${body.id}`, 'PATCH', { balance: parseInt(body.balance) });
+
+          // Cập nhật ví mặc định (is_default)
+          if (body.is_default === true) {
+            // 1. Lấy ví hiện tại để biết chat_id
+            const currentAcc = await supabaseFetch(env, `accounts?id=eq.${body.id}`);
+            if (currentAcc && currentAcc.length > 0) {
+              const chatId = currentAcc[0].chat_id;
+              // 2. Set tất cả ví của user này thành không mặc định
+              await supabaseFetch(env, `accounts?chat_id=eq.${chatId}`, 'PATCH', { is_default: false });
+            }
+          }
+
+          // Chuẩn bị các trường cần cập nhật
+          const updateFields = {};
+          if (body.balance !== undefined) updateFields.balance = parseInt(body.balance);
+          if (body.account_name !== undefined) updateFields.account_name = body.account_name.trim();
+          if (body.is_default !== undefined) updateFields.is_default = body.is_default;
+
+          const updateRes = await supabaseFetch(env, `accounts?id=eq.${body.id}`, 'PATCH', updateFields);
           if (updateRes !== null) {
             return new Response(JSON.stringify({ success: true }), { status: 200, headers });
           } else {
@@ -245,9 +263,9 @@ async function handleMessage(message, env, ctx) {
     let accs = await supabaseFetch(env, `accounts?chat_id=eq.${chatId}`);
     if (!accs || accs.length < 3) {
       const defaultAccounts = [
-        { chat_id: chatId, account_name: 'Tiền mặt', account_type: 'tien_mat', balance: 0 },
-        { chat_id: chatId, account_name: 'Techcombank', account_type: 'ngan_hang', balance: 0 },
-        { chat_id: chatId, account_name: 'Thẻ tín dụng', account_type: 'tin_dung', balance: 0 }
+        { chat_id: chatId, account_name: 'Tiền mặt', account_type: 'tien_mat', balance: 0, is_default: true },
+        { chat_id: chatId, account_name: 'Techcombank', account_type: 'ngan_hang', balance: 0, is_default: false },
+        { chat_id: chatId, account_name: 'Thẻ tín dụng', account_type: 'tin_dung', balance: 0, is_default: false }
       ];
       await supabaseFetch(env, 'accounts', 'POST', defaultAccounts);
       accs = await supabaseFetch(env, `accounts?chat_id=eq.${chatId}`);
@@ -368,6 +386,10 @@ async function handleMessage(message, env, ctx) {
 async function processTransaction(chatId, text, env, userName) {
   const accountsData = await supabaseFetch(env, `accounts?chat_id=eq.${chatId}`) || [];
   const accountsList = accountsData.map(a => a.account_name).join(', ');
+  
+  // Tìm tài khoản mặc định (ví chính) của người dùng
+  const defaultAccount = accountsData.find(a => a.is_default === true) || accountsData.find(a => a.account_name === 'Tiền mặt') || accountsData[0];
+  const defaultAccountName = defaultAccount ? defaultAccount.account_name : 'Tiền mặt';
 
   const now = new Date();
   const currentTime = now.toLocaleTimeString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit' });
@@ -409,6 +431,7 @@ async function processTransaction(chatId, text, env, userName) {
   - THU NHẬP: Dựa vào cấu trúc JSON sau để xác định "level1" và "level2":
   ${incomeStructure}
   - Nguồn tiền: ${accountsList || 'Tiền mặt'}
+  - Tài khoản mặc định (ví chính): Nếu người dùng KHÔNG chỉ định rõ ví thanh toán trong câu (ví dụ chỉ nói 'ăn trưa 50k', 'mua cafe 30k'), bạn BẮT BUỘC phải chọn nguồn tiền là '${defaultAccountName}'. Chỉ khi nào họ nói rõ ví khác (ví dụ: 'thẻ tín dụng', 'tiền mặt', v.v.) thì mới đổi.
 
   LƯU Ý ĐẶC BIỆT KHI PHÂN LOẠI:
   - Nếu giao dịch liên quan đến "Cafe/Coffee" nhưng có mục đích/ghi chú là đi làm việc, gặp đối tác, trao đổi công việc, họp hành, học tập, v.v., bạn BẮT BUỘC phải phân loại vào "Chi phí phát sinh" (level1) ➡️ "Công việc" (level2), thay vì "Chi phí sinh hoạt" ➡️ "Coffee".
