@@ -48,6 +48,18 @@ export default function OverviewTab({
 
   const formatVND = (val) => val.toLocaleString('vi-VN') + 'đ';
 
+  const formatCompactVND = (val) => {
+    const absVal = Math.abs(val);
+    const sign = val >= 0 ? '+' : '-';
+    if (absVal >= 1000000) {
+      return sign + (absVal / 1000000).toFixed(1).replace('.0', '') + 'M';
+    }
+    if (absVal >= 1000) {
+      return sign + (absVal / 1000).toFixed(1).replace('.0', '') + 'K';
+    }
+    return sign + absVal + 'đ';
+  };
+
   // Helper to map category/type to correct icons
   const getTxIcon = (item) => {
     const l1 = item.level1?.toLowerCase() || '';
@@ -73,17 +85,27 @@ export default function OverviewTab({
     <div className="space-y-6 animate-fade-in pb-12">
       {/* 1. Overall Balance Card */}
       <div className="bg-white dark:bg-stone-900 border border-stone-200/60 dark:border-stone-800/40 rounded-3xl p-6 shadow-sm">
-        <span className="text-[10px] text-stone-400 dark:text-stone-500 font-bold uppercase tracking-wider block mb-1">
+        <span className="text-[11px] text-stone-500 dark:text-stone-400 font-extrabold uppercase tracking-wider block mb-1.5">
           Tổng số dư
         </span>
         <div className="flex items-center justify-between">
-          <h2 className="text-3xl font-black text-[#111827] dark:text-white">
+          <h2 className="text-3xl font-black text-[#111827] dark:text-white tracking-tight">
             {formatVND(totalBalance)}
           </h2>
-          <span className="flex items-center gap-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 dark:bg-emerald-500/5 px-2.5 py-1 rounded-full border border-emerald-500/10">
-            <Icons.TrendingUp className="w-3 h-3" />
-            <span>+12.5%</span>
-          </span>
+          {(() => {
+            const netCashFlow = monthlyIncome - monthlyExpense;
+            const isSurplus = netCashFlow >= 0;
+            return (
+              <span className={`flex items-center gap-1 text-[10px] font-black px-2.5 py-1 rounded-full border ${
+                isSurplus
+                  ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 dark:bg-emerald-500/5 border-emerald-500/10'
+                  : 'text-rose-600 dark:text-rose-400 bg-rose-500/10 dark:bg-rose-500/5 border-rose-500/10'
+              }`}>
+                {isSurplus ? <Icons.TrendingUp className="w-3 h-3" /> : <Icons.TrendingDown className="w-3 h-3" />}
+                <span>{isSurplus ? 'Thặng dư' : 'Thâm hụt'} {formatCompactVND(netCashFlow)}</span>
+              </span>
+            );
+          })()}
         </div>
 
         {/* Income & Expense cards */}

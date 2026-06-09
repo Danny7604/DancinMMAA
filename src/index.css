@@ -2,6 +2,10 @@
 
 @variant dark (&:where(.dark, .dark *));
 
+body {
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
 /* Thiết lập các biến màu sắc và giao diện mặc định (Premium Warm/Glassmorphic) */
 :root {
   --color-primary: #111827; /* Dark Charcoal */
