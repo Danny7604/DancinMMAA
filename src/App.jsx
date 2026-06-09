@@ -639,6 +639,7 @@ export default function App() {
             monthlyIncome={data.monthly_income}
             triggerHaptic={triggerHaptic}
             categoryJars={categoryJars}
+            onUpdateCategoryJar={handleUpdateCategoryJar}
           />
         )}
 

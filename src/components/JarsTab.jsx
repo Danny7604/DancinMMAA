@@ -1,6 +1,70 @@
 import React, { useState } from 'react';
 import * as Icons from './Icons';
 
+const JAR_NAMES = {
+  nec: 'Hũ Thiết yếu',
+  edu: 'Hũ Giáo dục',
+  ltss: 'Hũ Tiết kiệm',
+  play: 'Hũ Hưởng thụ',
+  ffa: 'Hũ Tự do tài chính',
+  give: 'Hũ Cho đi'
+};
+
+const ALL_EXPENSE_CATEGORIES = [
+  {
+    id: 'sinhhoat',
+    name: 'Chi phí sinh hoạt',
+    sub: [
+      { name: "Ăn uống", icon: "🍔" },
+      { name: "Coffee", icon: "☕" },
+      { name: "Mua sắm gia đình", icon: "🛒" },
+      { name: "Online shopping", icon: "🛍️" },
+      { name: "Dating", icon: "❤️" },
+      { name: "Pet", icon: "🐱" },
+      { name: "Thể thao", icon: "⚽" },
+      { name: "Di chuyển", icon: "🚗" },
+      { name: "Game", icon: "🎮" }
+    ],
+  },
+  {
+    id: 'codinh',
+    name: 'Chi phí cố định',
+    sub: [
+      { name: "Tiền thuê nhà", icon: "🏠" },
+      { name: "Điện nước", icon: "⚡" },
+      { name: "Internet", icon: "🌐" },
+      { name: "Bảo hiểm", icon: "🛡️" },
+      { name: "Học phí", icon: "🎓" }
+    ],
+  },
+  {
+    id: 'phatsinh',
+    name: 'Chi phí phát sinh',
+    sub: [
+      { name: "Nhậu", icon: "🍻" },
+      { name: "Đám tiệc", icon: "🎉" },
+      { name: "Quà cáp", icon: "🎁" },
+      { name: "Y tế", icon: "🏥" },
+      { name: "Du lịch", icon: "✈️" },
+      { name: "Sửa xe", icon: "🔧" },
+      { name: "Household", icon: "🧹" },
+      { name: "Công việc", icon: "💼" },
+      { name: "Tín dụng", icon: "💳" },
+      { name: "Cho mượn", icon: "💸" }
+    ],
+  },
+  {
+    id: 'daututietkiem',
+    name: 'Đầu tư - Tiết kiệm',
+    sub: [
+      { name: "Quỹ tiết kiệm", icon: "🐖" },
+      { name: "Chứng khoán / Vàng", icon: "📈" },
+      { name: "Quỹ khác", icon: "💰" }
+    ],
+  },
+];
+
+
 export default function JarsTab({
   jarsAllocation = {
     nec: 55, // Nhu cầu thiết yếu
@@ -18,12 +82,14 @@ export default function JarsTab({
   monthlyIncome = 0,
   triggerHaptic,
   categoryJars = {},
+  onUpdateCategoryJar,
 }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newGoal, setNewGoal] = useState({ name: '', target: '', current: '0', image: '💰', note: '' });
   const [isLimitModalOpen, setIsLimitModalOpen] = useState(false);
   const [newLimit, setNewLimit] = useState({ name: '', target: '' });
   const [expandedJar, setExpandedJar] = useState(null);
+  const [activeMappingJar, setActiveMappingJar] = useState(null);
 
   const formatVND = (val) => val.toLocaleString('vi-VN') + 'đ';
 
@@ -213,6 +279,18 @@ export default function JarsTab({
     setNewLimit({ name: '', target: '' });
   };
 
+  const handleToggleCategory = (categoryName) => {
+    triggerHaptic('light');
+    const currentJar = categoryJars[categoryName] || 'nec';
+    if (currentJar === activeMappingJar) {
+      if (activeMappingJar !== 'nec') {
+        if (onUpdateCategoryJar) onUpdateCategoryJar(categoryName, 'nec');
+      }
+    } else {
+      if (onUpdateCategoryJar) onUpdateCategoryJar(categoryName, activeMappingJar);
+    }
+  };
+
   return (
     <div className="space-y-6 animate-fade-in pb-16 relative">
       {/* 1. Jars Segment */}
@@ -293,8 +371,21 @@ export default function JarsTab({
                         );
                       })
                     )}
+                    <div className="pt-2">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          triggerHaptic('medium');
+                          setActiveMappingJar(jar.id);
+                        }}
+                        className="w-full py-2 bg-stone-100 hover:bg-stone-250 dark:bg-stone-800 dark:hover:bg-stone-700/80 text-[10.5px] text-stone-800 dark:text-stone-200 font-bold rounded-xl transition-all border border-stone-200 dark:border-stone-700 flex items-center justify-center gap-1.5"
+                      >
+                        <Icons.Settings className="w-3.5 h-3.5" />
+                        <span>⚙ Quản lý liên kết</span>
+                      </button>
+                    </div>
                     <span className="text-[8.5px] text-stone-400 dark:text-stone-500 font-bold block pt-1.5 border-t border-dashed border-stone-150 dark:border-stone-800/40 mt-1">
-                      💡 Mẹo: Bạn có thể đổi hũ của danh mục tại tab "Cài đặt danh mục"
+                      💡 Mẹo: Bạn cũng có thể liên kết nhanh bằng cách bấm nút trên.
                     </span>
                   </div>
                 )}
@@ -555,6 +646,118 @@ export default function JarsTab({
                 Thiết lập hạn mức
               </button>
             </form>
+          </div>
+        </>
+      )}
+      {/* 7. Category Mapping Bottom Sheet Modal */}
+      {activeMappingJar && (
+        <>
+          <div 
+            className="fixed inset-0 bg-[#111827]/60 dark:bg-black/80 z-40 animate-fade-in backdrop-blur-sm" 
+            onClick={() => {
+              triggerHaptic('light');
+              setActiveMappingJar(null);
+            }} 
+          />
+          <div 
+            className="fixed bottom-0 left-0 right-0 z-50 rounded-t-[2.5rem] bg-white dark:bg-stone-900 border-t border-stone-200 dark:border-stone-800 shadow-2xl p-6 pb-8 max-h-[80vh] overflow-y-auto no-scrollbar animate-slide-up transition-colors duration-300 text-left"
+          >
+            {/* Drag indicator/handle */}
+            <div className="w-12 h-1.5 bg-stone-300 dark:bg-stone-700 rounded-full mx-auto mb-4" />
+            
+            {/* Header */}
+            <div className="flex justify-between items-start mb-5 pb-2 border-b border-stone-200/60 dark:border-stone-800/40">
+              <div className="text-left">
+                <h3 className="text-sm font-black text-[#111827] dark:text-white uppercase tracking-wider">
+                  Liên kết danh mục
+                </h3>
+                <p className="text-[11px] text-stone-500 dark:text-stone-400 font-semibold mt-1">
+                  Chọn danh mục cấp 2 tương thích với <span className="text-indigo-600 dark:text-indigo-400 font-extrabold">{JAR_NAMES[activeMappingJar]}</span>
+                </p>
+              </div>
+              <button 
+                onClick={() => {
+                  triggerHaptic('light');
+                  setActiveMappingJar(null);
+                }} 
+                className="p-1.5 rounded-full hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
+              >
+                <Icons.X className="w-5 h-5 text-stone-400" />
+              </button>
+            </div>
+
+            {/* Content - Scrollable grouped categories */}
+            <div className="space-y-5">
+              {ALL_EXPENSE_CATEGORIES.map(group => (
+                <div key={group.id} className="space-y-2">
+                  <h4 className="text-[10px] text-stone-400 dark:text-stone-500 font-black uppercase tracking-wider pl-1 flex items-center gap-1.5">
+                    {group.id === 'sinhhoat' ? (
+                      <Icons.Utensils className="w-3.5 h-3.5 text-indigo-500" />
+                    ) : group.id === 'codinh' ? (
+                      <Icons.Home className="w-3.5 h-3.5 text-stone-500" />
+                    ) : group.id === 'phatsinh' ? (
+                      <Icons.ShoppingBag className="w-3.5 h-3.5 text-rose-500" />
+                    ) : (
+                      <Icons.TrendingUp className="w-3.5 h-3.5 text-purple-500" />
+                    )}
+                    <span>{group.name}</span>
+                  </h4>
+                  <div className="grid grid-cols-2 gap-2">
+                    {group.sub.map(subCat => {
+                      const mappedJar = categoryJars[subCat.name] || 'nec';
+                      const isLinked = mappedJar === activeMappingJar;
+                      
+                      return (
+                        <button
+                          key={subCat.name}
+                          type="button"
+                          onClick={() => handleToggleCategory(subCat.name)}
+                          className={`p-3 rounded-2xl border text-left flex flex-col justify-between transition-all duration-250 active:scale-[0.97] h-[72px] ${
+                            isLinked
+                              ? 'bg-indigo-600/10 dark:bg-indigo-500/10 border-indigo-500/40 text-indigo-900 dark:text-indigo-350 shadow-sm ring-1 ring-indigo-500/30'
+                              : 'bg-stone-50/50 dark:bg-stone-900/50 border-stone-200/50 dark:border-stone-800/40 text-stone-700 dark:text-stone-300 hover:bg-stone-100/50 dark:hover:bg-stone-800/50'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between w-full">
+                            <span className="text-base">{subCat.icon}</span>
+                            {isLinked && (
+                              <span className="w-4 h-4 rounded-full bg-indigo-600 dark:bg-indigo-500 flex items-center justify-center text-[10px] text-white font-black">
+                                ✓
+                              </span>
+                            )}
+                          </div>
+                          <div className="mt-1 min-w-0 w-full">
+                            <span className="text-[11px] font-extrabold block truncate leading-tight">{subCat.name}</span>
+                            {!isLinked && (
+                              <span className="text-[9px] text-stone-400 dark:text-stone-500 font-bold block truncate mt-0.5">
+                                {JAR_NAMES[mappedJar]}
+                              </span>
+                            )}
+                            {isLinked && (
+                              <span className="text-[9px] text-indigo-600 dark:text-indigo-400 font-black block truncate mt-0.5">
+                                Đã liên kết
+                              </span>
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Bottom Save/Close button */}
+            <button
+              type="button"
+              onClick={() => {
+                triggerHaptic('success');
+                setActiveMappingJar(null);
+              }}
+              className="w-full py-3.5 mt-6 bg-[#111827] dark:bg-stone-100 text-white dark:text-[#111827] rounded-2xl text-xs font-black transition-all shadow-md hover:scale-[1.01] active:scale-[0.99] uppercase tracking-widest pt-4"
+            >
+              Xác nhận liên kết
+            </button>
           </div>
         </>
       )}
