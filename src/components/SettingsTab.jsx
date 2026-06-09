@@ -10,6 +10,9 @@ export default function SettingsTab({
   savingsGoals = [],
   onUpdateGoals,
   triggerHaptic,
+  walletMode = 'normal',
+  onUpdateWalletMode,
+  onOpenModeGuide,
 }) {
   const [activeSubTab, setActiveSubTab] = useState('categories'); // categories, finance
   const [categoryType, setCategoryType] = useState('expense'); // expense, income
@@ -294,6 +297,53 @@ export default function SettingsTab({
           <div className="text-left">
             <h3 className="text-sm font-black text-[#111827] dark:text-white uppercase tracking-wider">Cài đặt tài chính</h3>
             <span className="text-[10px] text-stone-400 dark:text-stone-500 font-bold uppercase tracking-wide">Quản lý mục tiêu và phân bổ ngân sách</span>
+          </div>
+
+          {/* Section 0: Wallet Management Mode Toggle */}
+          <div className="bg-white dark:bg-stone-900 border border-stone-200/60 dark:border-stone-800/40 rounded-3xl p-5 shadow-sm space-y-3">
+            <div className="flex justify-between items-center">
+              <div className="flex items-center gap-1.5">
+                <h4 className="text-xs font-black text-[#111827] dark:text-white uppercase tracking-wider">Chế độ quản trị ví</h4>
+                <button 
+                  type="button"
+                  onClick={() => {
+                    if (triggerHaptic) triggerHaptic('light');
+                    if (onOpenModeGuide) onOpenModeGuide();
+                  }}
+                  className="text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300 p-0.5 rounded-full"
+                >
+                  <Icons.Info className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              {/* Custom Sliding Toggle Switch */}
+              <button
+                type="button"
+                onClick={() => {
+                  const newMode = walletMode === 'normal' ? 'advanced' : 'normal';
+                  if (onUpdateWalletMode) onUpdateWalletMode(newMode);
+                }}
+                className="relative w-24 h-7 bg-stone-100 dark:bg-stone-800/80 rounded-full p-0.5 transition-colors duration-300 focus:outline-none border border-stone-200/60 dark:border-stone-700/60 flex-shrink-0"
+              >
+                {/* Sliding block */}
+                <div 
+                  className={`absolute top-0.5 bottom-0.5 left-0.5 w-[44px] rounded-full shadow-sm transition-transform duration-300 ease-out ${
+                    walletMode === 'advanced' 
+                      ? 'translate-x-[45px] bg-indigo-600 dark:bg-indigo-500' 
+                      : 'translate-x-0 bg-stone-950 dark:bg-stone-100'
+                  }`}
+                />
+                <div className="absolute inset-0 flex justify-between items-center px-3 pointer-events-none text-[8px] font-black uppercase tracking-wider">
+                  <span className={`${walletMode === 'normal' ? 'text-white dark:text-stone-950' : 'text-stone-450 dark:text-stone-500'} transition-colors duration-300 z-10`}>Thường</span>
+                  <span className={`${walletMode === 'advanced' ? 'text-white dark:text-white' : 'text-stone-450 dark:text-stone-500'} transition-colors duration-300 z-10`}>N.Cao</span>
+                </div>
+              </button>
+            </div>
+            <p className="text-[10px] text-stone-500 dark:text-stone-400 leading-relaxed font-semibold">
+              {walletMode === 'normal' 
+                ? 'Chế độ Thường: Hiển thị tổng chi tiêu tháng này của từng ví, tự động ngăn ngừa số dư âm.' 
+                : 'Chế độ Nâng cao: Hiển thị số dư thực tế, quản trị chặt chẽ dòng tiền và giao dịch chuyển khoản.'}
+            </p>
           </div>
 
           {/* Section 1: Savings Targets list with sliders */}

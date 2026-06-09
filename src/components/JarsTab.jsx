@@ -28,6 +28,75 @@ export default function JarsTab({
   // Total income used to scale the 6 jars cap, dynamically loaded from database (defaults to 10M if 0)
   const baseIncome = monthlyIncome || 10000000;
 
+  const parseDateStr = (str) => {
+    if (!str) return null;
+    const parts = str.split('/');
+    if (parts.length !== 3) return null;
+    return new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+  };
+
+  const getJarForTransaction = (t) => {
+    const l1 = t.level1 || '';
+    const l2 = t.level2 || '';
+    const l1Lower = l1.toLowerCase();
+    const l2Lower = l2.toLowerCase();
+
+    // 1. GIVE (Cho đi)
+    if (l2Lower.includes('quà') || l2Lower.includes('cho mượn') || l2Lower.includes('cho đi') || l2Lower.includes('từ thiện') || l2Lower.includes('ủng hộ')) {
+      return 'give';
+    }
+
+    // 2. FFA (Tự do tài chính)
+    if (l2Lower.includes('chứng khoán') || l2Lower.includes('vàng') || l2Lower.includes('đầu tư') || l2Lower.includes('cổ phiếu') || l2Lower.includes('quỹ khác')) {
+      return 'ffa';
+    }
+
+    // 3. LTSS (Tiết kiệm dài hạn)
+    if (l2Lower.includes('tiết kiệm') || l2Lower.includes('tích lũy')) {
+      return 'ltss';
+    }
+
+    // 4. EDU (Giáo dục)
+    if (l2Lower.includes('học') || l2Lower.includes('sách') || l2Lower.includes('khoá học') || l2Lower.includes('công việc')) {
+      return 'edu';
+    }
+
+    // 5. PLAY (Hưởng thụ)
+    if (l2Lower.includes('nhậu') || l2Lower.includes('du lịch') || l2Lower.includes('tiệc') || l2Lower.includes('dating') || l2Lower.includes('game') || l2Lower.includes('giải trí') || l2Lower.includes('hưởng thụ')) {
+      return 'play';
+    }
+
+    // 6. NEC (Nhu cầu thiết yếu)
+    if (l1Lower.includes('sinh hoạt') || l1Lower.includes('cố định') || l2Lower.includes('ăn uống') || l2Lower.includes('coffee') || l2Lower.includes('di chuyển') || l2Lower.includes('y tế') || l2Lower.includes('sửa xe') || l2Lower.includes('household') || l2Lower.includes('thuê nhà') || l2Lower.includes('điện nước')) {
+      return 'nec';
+    }
+
+    return 'nec'; // Fallback
+  };
+
+  const getCategorySpentThisMonth = (categoryName) => {
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+    const nameLower = categoryName.toLowerCase().trim();
+
+    return (transactions || []).reduce((sum, t) => {
+      if (t.type === 'chi') {
+        const l1 = (t.level1 || '').toLowerCase();
+        const l2 = (t.level2 || '').toLowerCase();
+        const note = (t.note || '').toLowerCase();
+        
+        if (l1 === nameLower || l2 === nameLower || note.includes(nameLower)) {
+          const tDate = parseDateStr(t.date);
+          if (tDate && tDate.getMonth() === currentMonth && tDate.getFullYear() === currentYear) {
+            return sum + (t.amount || 0);
+          }
+        }
+      }
+      return sum;
+    }, 0);
+  };
+
   // Define 6 jars configs
   const jars = [
     {
@@ -37,8 +106,8 @@ export default function JarsTab({
       icon: <Icons.Utensils className="w-5 h-5 text-stone-700 dark:text-stone-300" />,
       targetVal: baseIncome * (jarsAllocation.nec / 100),
       currentVal: transactions
-        .filter(t => t.type === 'chi' && (t.level1?.includes('sinh hoạt') || t.level1?.includes('Ăn uống')))
-        .reduce((sum, t) => sum + t.amount, 0),
+        .filter(t => t.type === 'chi' && getJarForTransaction(t) === 'nec')
+        .reduce((sum, t) => sum + (t.amount || 0), 0),
       colorClass: 'bg-[#111827] dark:bg-stone-400',
     },
     {
@@ -48,8 +117,8 @@ export default function JarsTab({
       icon: <Icons.GraduationCap className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />,
       targetVal: baseIncome * (jarsAllocation.edu / 100),
       currentVal: transactions
-        .filter(t => t.type === 'chi' && t.level1?.includes('Học tập'))
-        .reduce((sum, t) => sum + t.amount, 0),
+        .filter(t => t.type === 'chi' && getJarForTransaction(t) === 'edu')
+        .reduce((sum, t) => sum + (t.amount || 0), 0),
       colorClass: 'bg-emerald-600',
     },
     {
@@ -59,19 +128,19 @@ export default function JarsTab({
       icon: <Icons.Target className="w-5 h-5 text-stone-500 dark:text-stone-400" />,
       targetVal: baseIncome * (jarsAllocation.ltss / 100),
       currentVal: transactions
-        .filter(t => t.type === 'chi' && t.level1?.includes('tiết kiệm'))
-        .reduce((sum, t) => sum + t.amount, 0),
+        .filter(t => t.type === 'chi' && getJarForTransaction(t) === 'ltss')
+        .reduce((sum, t) => sum + (t.amount || 0), 0),
       colorClass: 'bg-stone-500',
     },
     {
       id: 'play',
       name: 'Hũ Hưởng thụ',
       percent: jarsAllocation.play,
-      icon: <Icons.Award className="w-5 h-5 text-amber-655 dark:text-amber-400" /> ? <Icons.Award className="w-5 h-5 text-amber-600 dark:text-amber-400" /> : <Icons.Award className="w-5 h-5 text-amber-600 dark:text-amber-400" />,
+      icon: <Icons.Award className="w-5 h-5 text-amber-600 dark:text-amber-400" />,
       targetVal: baseIncome * (jarsAllocation.play / 100),
       currentVal: transactions
-        .filter(t => t.type === 'chi' && t.level1?.includes('Giải trí'))
-        .reduce((sum, t) => sum + t.amount, 0),
+        .filter(t => t.type === 'chi' && getJarForTransaction(t) === 'play')
+        .reduce((sum, t) => sum + (t.amount || 0), 0),
       colorClass: 'bg-amber-600',
     },
     {
@@ -81,8 +150,8 @@ export default function JarsTab({
       icon: <Icons.TrendingUp className="w-5 h-5 text-amber-700 dark:text-amber-400" />,
       targetVal: baseIncome * (jarsAllocation.ffa / 100),
       currentVal: transactions
-        .filter(t => t.type === 'chi' && t.level1?.includes('Đầu tư'))
-        .reduce((sum, t) => sum + t.amount, 0),
+        .filter(t => t.type === 'chi' && getJarForTransaction(t) === 'ffa')
+        .reduce((sum, t) => sum + (t.amount || 0), 0),
       colorClass: 'bg-amber-700',
     },
     {
@@ -92,8 +161,8 @@ export default function JarsTab({
       icon: <Icons.Heart className="w-5 h-5 text-rose-600 dark:text-rose-400" />,
       targetVal: baseIncome * (jarsAllocation.give / 100),
       currentVal: transactions
-        .filter(t => t.type === 'chi' && t.level1?.includes('Cho đi'))
-        .reduce((sum, t) => sum + t.amount, 0),
+        .filter(t => t.type === 'chi' && getJarForTransaction(t) === 'give')
+        .reduce((sum, t) => sum + (t.amount || 0), 0),
       colorClass: 'bg-rose-500',
     },
   ];
@@ -207,7 +276,8 @@ export default function JarsTab({
             </div>
           ) : (
             categoryLimits.map((limit, i) => {
-              const pct = Math.min(Math.round((limit.current / limit.target) * 100), 100);
+              const currentSpent = getCategorySpentThisMonth(limit.name);
+              const pct = Math.min(Math.round((currentSpent / limit.target) * 100), 100);
               const isDanger = pct >= 80;
               const nameLower = limit.name.toLowerCase();
               return (
@@ -228,7 +298,7 @@ export default function JarsTab({
                     <div className="text-right font-bold text-stone-500 dark:text-stone-400">
                       <span className={isDanger ? 'text-rose-500' : 'text-stone-700 dark:text-stone-300'}>{pct}% used</span>
                       <span className="text-[10px] block font-medium">
-                        {formatVND(limit.current)} / {formatVND(limit.target)}
+                        {formatVND(currentSpent)} / {formatVND(limit.target)}
                       </span>
                     </div>
                   </div>

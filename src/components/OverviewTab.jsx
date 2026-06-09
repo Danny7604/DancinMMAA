@@ -11,8 +11,34 @@ export default function OverviewTab({
   onSelectTransaction,
   triggerHaptic,
   onViewAll,
+  walletMode = 'normal',
 }) {
   const [typeFilter, setTypeFilter] = useState('all'); // all, thu, chi
+
+  // Helper to parse DD/MM/YYYY into date
+  const parseDateStr = (str) => {
+    if (!str) return null;
+    const parts = str.split('/');
+    if (parts.length !== 3) return null;
+    return new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+  };
+
+  // Helper to compute wallet monthly spent
+  const getWalletMonthlySpent = (walletName) => {
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+
+    return (transactions || []).reduce((sum, t) => {
+      if (t.type === 'chi' && t.account_name === walletName) {
+        const tDate = parseDateStr(t.date);
+        if (tDate && tDate.getMonth() === currentMonth && tDate.getFullYear() === currentYear) {
+          return sum + (t.amount || 0);
+        }
+      }
+      return sum;
+    }, 0);
+  };
 
   // Filter transactions based on local pills
   const filtered = transactions.filter(t => {
@@ -153,10 +179,23 @@ export default function OverviewTab({
                 <span className={balanceClass}>
                   {formatVND(wallet.balance || 0)}
                 </span>
+                <span className="text-[9px] text-stone-400 dark:text-stone-500 font-extrabold block mt-0.5 uppercase tracking-wide">
+                  Số dư thực tế
+                </span>
               </div>
             );
           }))}
         </div>
+
+        {/* Advanced Mode Tip Banner */}
+        {walletMode === 'advanced' && (
+          <div className="mt-3 bg-indigo-500/5 dark:bg-indigo-500/5 border border-indigo-500/10 p-3 rounded-2xl flex gap-2 items-start animate-fade-in text-left">
+            <Icons.Info className="w-4 h-4 text-indigo-500 flex-shrink-0 mt-0.5" />
+            <p className="text-[10px] text-stone-600 dark:text-indigo-300 leading-relaxed font-semibold">
+              <strong>Mẹo Nâng cao:</strong> Đừng quên ghi nhận các giao dịch chuyển khoản (ví dụ: <em>"chuyển khoản 1 triệu sang tiền mặt"</em>) khi bạn rút/nạp tiền để số dư các ví luôn khớp thực tế.
+            </p>
+          </div>
+        )}
       </div>
 
       {/* 3. Recent Transactions Section */}

@@ -7,6 +7,7 @@ import SettingsTab from './components/SettingsTab';
 import FilterDrawer from './components/FilterDrawer';
 import TransactionDetailSheet from './components/TransactionDetailSheet';
 import WalletDetailSheet from './components/WalletDetailSheet';
+import WalletModeGuideModal from './components/WalletModeGuideModal';
 
 // --- MOCK TRANSACTION HISTORY DATABASE ---
 const MOCK_HISTORICAL_TRANSACTIONS = [];
@@ -37,6 +38,19 @@ export default function App() {
   });
   const [savingsGoals, setSavingsGoals] = useState([]);
   const [categoryLimits, setCategoryLimits] = useState([]);
+
+  // Wallet Management Mode state (normal vs advanced)
+  const [walletMode, setWalletMode] = useState(() => {
+    return localStorage.getItem('dancin-wallet-mode') || 'normal';
+  });
+  const [isModeGuideOpen, setIsModeGuideOpen] = useState(false);
+
+  const handleUpdateWalletMode = (mode) => {
+    triggerHaptic('success');
+    setWalletMode(mode);
+    localStorage.setItem('dancin-wallet-mode', mode);
+    setIsModeGuideOpen(true); // Auto-open guide on mode change
+  };
 
   // Theme state
   const [theme, setTheme] = useState(() => {
@@ -552,6 +566,7 @@ export default function App() {
             onSelectTransaction={setSelectedTransaction}
             triggerHaptic={triggerHaptic}
             onViewAll={() => setActiveTab('history')}
+            walletMode={walletMode}
           />
         )}
 
@@ -692,6 +707,9 @@ export default function App() {
             savingsGoals={savingsGoals}
             onUpdateGoals={setSavingsGoals}
             triggerHaptic={triggerHaptic}
+            walletMode={walletMode}
+            onUpdateWalletMode={handleUpdateWalletMode}
+            onOpenModeGuide={() => setIsModeGuideOpen(true)}
           />
         )}
       </main>
@@ -757,6 +775,13 @@ export default function App() {
           triggerHaptic={triggerHaptic}
         />
       )}
+
+      <WalletModeGuideModal
+        isOpen={isModeGuideOpen}
+        onClose={() => setIsModeGuideOpen(false)}
+        currentMode={walletMode}
+        triggerHaptic={triggerHaptic}
+      />
 
       {/* Floating Chat/Voice Button */}
       <button
