@@ -283,58 +283,8 @@ async function handleMessage(message, env, ctx) {
       return sendMessage(env, chatId, `❌ <b>LỖI NGHIÊM TRỌNG:</b> Không thể ghi dữ liệu vào Supabase.\n\n💡 <b>Vui lòng kiểm tra lại trên Supabase:</b>\n1. Các bảng <code>users</code> và <code>accounts</code> đã được chạy lệnh SQL tạo thành công chưa?\n2. Khóa API và URL cấu hình trong Cloudflare có bị sai ký tự nào không?`);
     }
 
-    const msg = `👋 Chào ${name}!\n\nHệ thống bọc thép đã sẵn sàng. Để tiết kiệm thời gian, bạn hãy chạm vào dòng bên dưới để copy, điền số dư thực tế và gửi lại cho mình nhé (1 lần duy nhất):`;
-    await sendMessage(env, chatId, msg);
-    return sendMessage(env, chatId, `<code>/init 0 | 0 | 0</code>\n<i>(Tương ứng: Tiền mặt | TK Chính | Thẻ tín dụng)</i>`);
-  }
-
-  // 2. LỆNH /INIT (Khởi tạo số dư 1 chạm)
-  if (text.startsWith('/init')) {
-    const parts = text.replace('/init', '').split('|').map(s => parseInt(s.replace(/[^0-9-]/g, ''))); 
-    if (parts.length !== 3 || parts.some(isNaN)) {
-      return sendMessage(env, chatId, '⚠️ Cú pháp chưa chuẩn. Bạn hãy copy lại template và thay số 0 bằng số tiền nhé.');
-    }
-
-    await sendMessage(env, chatId, `⏳ Đang cập nhật đồng loạt 3 ví...`);
-
-    const accs = await supabaseFetch(env, `accounts?chat_id=eq.${chatId}`);
-    if (!accs || accs.length < 3) return sendMessage(env, chatId, '❌ Lỗi lấy dữ liệu ví. Bạn gõ /start lại nhé.');
-
-    const tienMat = accs.find(a => a.account_name === 'Tiền mặt');
-    const tkChinh = accs.find(a => a.account_name === 'Tài khoản chính');
-    const theTinDung = accs.find(a => a.account_name === 'Thẻ tín dụng');
-
-    ctx.waitUntil(Promise.all([
-      supabaseFetch(env, `accounts?id=eq.${tienMat?.id}`, 'PATCH', { balance: parts[0] }),
-      supabaseFetch(env, `accounts?id=eq.${tkChinh?.id}`, 'PATCH', { balance: parts[1] }),
-      supabaseFetch(env, `accounts?id=eq.${theTinDung?.id}`, 'PATCH', { balance: parts[2] })
-    ]));
-
-    return sendMessage(env, chatId, `✅ <b>Khởi tạo ví thành công!</b>\n\n💵 Tiền mặt: ${parts[0].toLocaleString('vi-VN')}đ\n🏦 TK Chính: ${parts[1].toLocaleString('vi-VN')}đ\n💳 Thẻ tín dụng: ${parts[2].toLocaleString('vi-VN')}đ\n\nTừ giờ AI sẽ tự động ghi chép thu chi cho bạn!`);
-  }
-
-  // 3. LỆNH /SET SODU (Dự phòng cho từng ví lẻ)
-  if (text.toLowerCase().startsWith('/set sodu ')) {
-    const parts = text.replace(/\/set sodu /i, '').trim().split(' ');
-    if (parts.length < 2) return sendMessage(env, chatId, '⚠️ <b>Cú pháp sai.</b>\nVui lòng nhập: <code>/set sodu [Tên ví] [Số tiền]</code>');
-
-    const amountStr = parts.pop().replace(/[,.]/g, ''); 
-    const amount = parseInt(amountStr);
-    const walletName = parts.join(' ').trim();
-
-    if (isNaN(amount)) return sendMessage(env, chatId, '⚠️ Số tiền không hợp lệ.');
-
-    await sendMessage(env, chatId, `⏳ Đang cập nhật...`);
-    const accs = await supabaseFetch(env, `accounts?chat_id=eq.${chatId}&account_name=ilike.${encodeURIComponent(walletName)}`);
-    
-    if (!accs || accs.length === 0) return sendMessage(env, chatId, `❌ Không tìm thấy ví "<b>${walletName}</b>".`);
-
-    const updateRes = await supabaseFetch(env, `accounts?id=eq.${accs[0].id}`, 'PATCH', { balance: amount });
-    if (updateRes !== null) {
-      return sendMessage(env, chatId, `✅ <b>Thành công!</b>\n💳 Ví: <b>${accs[0].account_name}</b>\n💰 Số dư: <b>${amount.toLocaleString('vi-VN')} đ</b>`);
-    } else {
-      return sendMessage(env, chatId, `❌ Có lỗi xảy ra.`);
-    }
+    const msg = `👋 Chào ${name}!\n\nHệ thống quản lý tài chính <b>Dancin MMAA</b> đã sẵn sàng hoạt động.\n\nĐể bắt đầu ghi chép chi tiêu chính xác nhất, bạn hãy nhấn nút <b>Mở App / Dashboard</b> ở góc dưới bên trái màn hình chat, sau đó vào phần <b>Tài khoản & Ví</b> trên trang chủ và bấm trực tiếp vào từng ví để thiết lập số dư ban đầu của mình nhé!`;
+    return sendMessage(env, chatId, msg);
   }
 
   // 4. LỆNH /BIEUDO
