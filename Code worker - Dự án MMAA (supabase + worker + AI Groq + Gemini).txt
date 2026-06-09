@@ -68,7 +68,7 @@ export default {
 
           const now = new Date();
           const currentMonth = ("0" + (now.getMonth() + 1)).slice(-2) + "/" + now.getFullYear();
-          const txs = await supabaseFetch(env, `transactions?chat_id=eq.${chatId}&date=ilike.%25${currentMonth}`);
+          const txs = await supabaseFetch(env, `transactions?chat_id=eq.${chatId}&date=ilike.%25${currentMonth}&order=created_at.desc`);
 
           let monthlyIncome = 0;
           let monthlyExpense = 0;
@@ -95,7 +95,7 @@ export default {
             monthly_income: monthlyIncome,
             monthly_expense: monthlyExpense,
             chart_data: chartData,
-            recent_transactions: txs?.slice(0, 5)
+            recent_transactions: txs
           };
 
           return new Response(JSON.stringify(dashboardData), { status: 200, headers });
