@@ -301,7 +301,24 @@ async function handleMessage(message, env, ctx) {
       return sendMessage(env, chatId, `❌ <b>LỖI NGHIÊM TRỌNG:</b> Không thể ghi dữ liệu vào Supabase.\n\n💡 <b>Vui lòng kiểm tra lại trên Supabase:</b>\n1. Các bảng <code>users</code> và <code>accounts</code> đã được chạy lệnh SQL tạo thành công chưa?\n2. Khóa API và URL cấu hình trong Cloudflare có bị sai ký tự nào không?`);
     }
 
-    const msg = `👋 Chào ${name}!\n\nHệ thống quản lý tài chính <b>Dancin MMAA</b> đã sẵn sàng hoạt động.\n\nĐể bắt đầu ghi chép chi tiêu chính xác nhất, bạn hãy nhấn nút <b>Mở App / Dashboard</b> ở góc dưới bên trái màn hình chat, sau đó vào phần <b>Tài khoản & Ví</b> trên trang chủ và bấm trực tiếp vào từng ví để thiết lập số dư ban đầu của mình nhé!`;
+    const msg = `🐱 <b>DANCIN MMAA - TRỢ LÝ QUẢN LÝ TÀI CHÍNH 6 HŨ BẰNG AI</b>
+
+Chào mừng <b>${name}</b> đến với Dancin MMAA! 🚀 Từ hôm nay, việc quản lý thu chi và tích lũy của bạn sẽ trở nên đơn giản hơn bao giờ hết nhờ sự hỗ trợ của AI.
+
+━━━━━━━━━━━━━━━━━━━
+
+<b>🌟 DANCIN MMAA GIÚP BẠN THẾ NÀO?</b>
+1. <b>Ghi chép siêu tốc:</b> Chỉ cần nhắn tin hoặc gửi tin nhắn thoại (Voice) như nói chuyện bình thường. Ví dụ: <i>"ăn sáng 35k"</i>, <i>"tiền lương 15 triệu"</i>, <i>"rút 500k từ ngân hàng sang ví tiền mặt"</i>.
+2. <b>Tự động chia 6 Hũ:</b> AI tự động phân tích và phân bổ tiền của bạn vào các hũ tài chính tương ứng (Thiết yếu, Tiết kiệm, Hưởng thụ...) tức thì.
+
+━━━━━━━━━━━━━━━━━━━
+
+<b>🚀 3 BƯỚC ĐỂ BẮT ĐẦU NGAY:</b>
+• <b>Bước 1:</b> Thử nhắn tin hoặc gửi một Voice chi tiêu đầu tiên ngay tại đây (Ví dụ: <i>"ăn trưa 50k"</i>).
+• <b>Bước 2:</b> Bấm nút <b>Mở App / Dashboard</b> ở góc dưới bên trái màn hình chat để xem ví và các hũ tài chính của bạn.
+• <b>Bước 3:</b> Tại ứng dụng, nhấp chọn hũ bất kỳ ➡️ Chọn <b>⚙ Quản lý liên kết</b> để chỉnh sửa danh mục chi tiêu theo thói quen của bạn.
+
+👇 <i>Bắt đầu hành trình tự do tài chính bằng cách ghi chép giao dịch đầu tiên của bạn ngay lúc này nhé!</i>`;
     return sendMessage(env, chatId, msg);
   }
 
