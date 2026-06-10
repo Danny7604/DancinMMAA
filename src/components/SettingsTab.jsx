@@ -16,6 +16,7 @@ export default function SettingsTab({
   categoryJars = {},
   onUpdateCategoryJar,
 }) {
+  const formatVND = (val) => (val ?? 0).toLocaleString('vi-VN') + 'đ';
   const [activeSubTab, setActiveSubTab] = useState('categories'); // categories, finance
   const [categoryType, setCategoryType] = useState('expense'); // expense, income
   const [expandedAccordion, setExpandedAccordion] = useState('sinhhoat');
