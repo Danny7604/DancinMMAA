@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import * as Icons from './Icons';
 
 const JAR_NAMES = {
@@ -90,6 +91,17 @@ export default function JarsTab({
   const [newLimit, setNewLimit] = useState({ name: '', target: '' });
   const [expandedJar, setExpandedJar] = useState(null);
   const [activeMappingJar, setActiveMappingJar] = useState(null);
+
+  useEffect(() => {
+    if (activeMappingJar) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [activeMappingJar]);
 
   const formatVND = (val) => val.toLocaleString('vi-VN') + 'đ';
 
@@ -650,44 +662,47 @@ export default function JarsTab({
         </>
       )}
       {/* 7. Category Mapping Bottom Sheet Modal */}
-      {activeMappingJar && (
+      {activeMappingJar && createPortal(
         <>
           <div 
-            className="fixed inset-0 bg-[#111827]/60 dark:bg-black/80 z-40 animate-fade-in backdrop-blur-sm" 
+            className="fixed inset-0 bg-[#111827]/60 dark:bg-black/80 z-[100] animate-fade-in backdrop-blur-sm" 
             onClick={() => {
               triggerHaptic('light');
               setActiveMappingJar(null);
             }} 
           />
           <div 
-            className="fixed bottom-0 left-0 right-0 z-50 rounded-t-[2.5rem] bg-white dark:bg-stone-900 border-t border-stone-200 dark:border-stone-800 shadow-2xl p-6 pb-8 max-h-[80vh] overflow-y-auto no-scrollbar animate-slide-up transition-colors duration-300 text-left"
+            className="fixed bottom-0 left-0 right-0 z-[101] rounded-t-[2.5rem] bg-white dark:bg-stone-900 border-t border-stone-200 dark:border-stone-800 shadow-2xl flex flex-col h-[75vh] max-h-[75vh] animate-slide-up transition-colors duration-300 text-left"
           >
-            {/* Drag indicator/handle */}
-            <div className="w-12 h-1.5 bg-stone-300 dark:bg-stone-700 rounded-full mx-auto mb-4" />
-            
-            {/* Header */}
-            <div className="flex justify-between items-start mb-5 pb-2 border-b border-stone-200/60 dark:border-stone-800/40">
-              <div className="text-left">
-                <h3 className="text-sm font-black text-[#111827] dark:text-white uppercase tracking-wider">
-                  Liên kết danh mục
-                </h3>
-                <p className="text-[11px] text-stone-500 dark:text-stone-400 font-semibold mt-1">
-                  Chọn danh mục cấp 2 tương thích với <span className="text-indigo-600 dark:text-indigo-400 font-extrabold">{JAR_NAMES[activeMappingJar]}</span>
-                </p>
+            {/* Top fixed area: Drag handle & Header */}
+            <div className="px-6 pt-5 pb-3 flex-shrink-0">
+              {/* Drag indicator/handle */}
+              <div className="w-12 h-1.5 bg-stone-300 dark:bg-stone-700 rounded-full mx-auto mb-4" />
+              
+              {/* Header block */}
+              <div className="flex justify-between items-start pb-2 border-b border-stone-200/60 dark:border-stone-800/40">
+                <div className="text-left">
+                  <h3 className="text-sm font-black text-[#111827] dark:text-white uppercase tracking-wider">
+                    Liên kết danh mục
+                  </h3>
+                  <p className="text-[11px] text-stone-500 dark:text-stone-400 font-semibold mt-1">
+                    Chọn danh mục cấp 2 tương thích với <span className="text-indigo-600 dark:text-indigo-400 font-extrabold">{JAR_NAMES[activeMappingJar]}</span>
+                  </p>
+                </div>
+                <button 
+                  onClick={() => {
+                    triggerHaptic('light');
+                    setActiveMappingJar(null);
+                  }} 
+                  className="p-1.5 rounded-full hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
+                >
+                  <Icons.X className="w-5 h-5 text-stone-400" />
+                </button>
               </div>
-              <button 
-                onClick={() => {
-                  triggerHaptic('light');
-                  setActiveMappingJar(null);
-                }} 
-                className="p-1.5 rounded-full hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
-              >
-                <Icons.X className="w-5 h-5 text-stone-400" />
-              </button>
             </div>
 
-            {/* Content - Scrollable grouped categories */}
-            <div className="space-y-5">
+            {/* Middle scrollable area: Grouped categories */}
+            <div className="flex-grow overflow-y-auto no-scrollbar px-6 py-2 space-y-5">
               {ALL_EXPENSE_CATEGORIES.map(group => (
                 <div key={group.id} className="space-y-2">
                   <h4 className="text-[10px] text-stone-400 dark:text-stone-500 font-black uppercase tracking-wider pl-1 flex items-center gap-1.5">
@@ -747,19 +762,22 @@ export default function JarsTab({
               ))}
             </div>
 
-            {/* Bottom Save/Close button */}
-            <button
-              type="button"
-              onClick={() => {
-                triggerHaptic('success');
-                setActiveMappingJar(null);
-              }}
-              className="w-full py-3.5 mt-6 bg-[#111827] dark:bg-stone-100 text-white dark:text-[#111827] rounded-2xl text-xs font-black transition-all shadow-md hover:scale-[1.01] active:scale-[0.99] uppercase tracking-widest pt-4"
-            >
-              Xác nhận liên kết
-            </button>
+            {/* Bottom fixed area: Save/Confirm button */}
+            <div className="px-6 pt-2 pb-8 border-t border-stone-100 dark:border-stone-850 flex-shrink-0 bg-white dark:bg-stone-900 rounded-b-[2.5rem]">
+              <button
+                type="button"
+                onClick={() => {
+                  triggerHaptic('success');
+                  setActiveMappingJar(null);
+                }}
+                className="w-full py-3.5 bg-[#111827] dark:bg-stone-100 text-white dark:text-[#111827] rounded-2xl text-xs font-black transition-all shadow-md hover:scale-[1.01] active:scale-[0.99] uppercase tracking-widest pt-4"
+              >
+                Xác nhận liên kết
+              </button>
+            </div>
           </div>
-        </>
+        </>,
+        document.body
       )}
     </div>
   );
