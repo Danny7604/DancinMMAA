@@ -49,6 +49,56 @@ const DEFAULT_CATEGORY_JARS = {
   'Quỹ khác': 'ffa'
 };
 
+const DEFAULT_CATEGORIES = [
+  // Expenses
+  { transaction_type: 'chi', level_1: 'Chi phí sinh hoạt', level_2: 'Ăn uống' },
+  { transaction_type: 'chi', level_1: 'Chi phí sinh hoạt', level_2: 'Coffee' },
+  { transaction_type: 'chi', level_1: 'Chi phí sinh hoạt', level_2: 'Mua sắm gia đình' },
+  { transaction_type: 'chi', level_1: 'Chi phí sinh hoạt', level_2: 'Online shopping' },
+  { transaction_type: 'chi', level_1: 'Chi phí sinh hoạt', level_2: 'Dating' },
+  { transaction_type: 'chi', level_1: 'Chi phí sinh hoạt', level_2: 'Pet' },
+  { transaction_type: 'chi', level_1: 'Chi phí sinh hoạt', level_2: 'Thể thao' },
+  { transaction_type: 'chi', level_1: 'Chi phí sinh hoạt', level_2: 'Di chuyển' },
+  { transaction_type: 'chi', level_1: 'Chi phí sinh hoạt', level_2: 'Game' },
+  
+  { transaction_type: 'chi', level_1: 'Chi phí cố định', level_2: 'Tiền thuê nhà' },
+  { transaction_type: 'chi', level_1: 'Chi phí cố định', level_2: 'Điện nước' },
+  { transaction_type: 'chi', level_1: 'Chi phí cố định', level_2: 'Internet' },
+  { transaction_type: 'chi', level_1: 'Chi phí cố định', level_2: 'Bảo hiểm' },
+  { transaction_type: 'chi', level_1: 'Chi phí cố định', level_2: 'Học phí' },
+  
+  { transaction_type: 'chi', level_1: 'Chi phí phát sinh', level_2: 'Nhậu' },
+  { transaction_type: 'chi', level_1: 'Chi phí phát sinh', level_2: 'Đám tiệc' },
+  { transaction_type: 'chi', level_1: 'Chi phí phát sinh', level_2: 'Quà cáp' },
+  { transaction_type: 'chi', level_1: 'Chi phí phát sinh', level_2: 'Y tế' },
+  { transaction_type: 'chi', level_1: 'Chi phí phát sinh', level_2: 'Du lịch' },
+  { transaction_type: 'chi', level_1: 'Chi phí phát sinh', level_2: 'Sửa xe' },
+  { transaction_type: 'chi', level_1: 'Chi phí phát sinh', level_2: 'Household' },
+  { transaction_type: 'chi', level_1: 'Chi phí phát sinh', level_2: 'Công việc' },
+  { transaction_type: 'chi', level_1: 'Chi phí phát sinh', level_2: 'Tín dụng' },
+  { transaction_type: 'chi', level_1: 'Chi phí phát sinh', level_2: 'Cho mượn' },
+  
+  { transaction_type: 'chi', level_1: 'Đầu tư - Tiết kiệm', level_2: 'Quỹ tiết kiệm' },
+  { transaction_type: 'chi', level_1: 'Đầu tư - Tiết kiệm', level_2: 'Chứng khoán / Vàng' },
+  { transaction_type: 'chi', level_1: 'Đầu tư - Tiết kiệm', level_2: 'Quỹ khác' },
+
+  // Income
+  { transaction_type: 'thu', level_1: 'Thu nhập', level_2: 'Lương chính' },
+  { transaction_type: 'thu', level_1: 'Thu nhập', level_2: 'Job phụ' },
+  { transaction_type: 'thu', level_1: 'Thu nhập', level_2: 'Job phụ 2' },
+  
+  { transaction_type: 'thu', level_1: 'Lãi/Lời', level_2: 'Lãi tiết kiệm' },
+  { transaction_type: 'thu', level_1: 'Lãi/Lời', level_2: 'Lãi đầu tư' },
+  { transaction_type: 'thu', level_1: 'Lãi/Lời', level_2: 'Cổ tức' },
+  
+  { transaction_type: 'thu', level_1: 'Thưởng/Quà', level_2: 'Thưởng' },
+  { transaction_type: 'thu', level_1: 'Thưởng/Quà', level_2: 'Được tặng' },
+  { transaction_type: 'thu', level_1: 'Thưởng/Quà', level_2: 'Trúng thưởng' },
+  
+  { transaction_type: 'thu', level_1: 'Khác', level_2: 'Thu hồi nợ' },
+  { transaction_type: 'thu', level_1: 'Khác', level_2: 'Bán đồ cũ' },
+];
+
 // Helper to parse DD/MM/YYYY into date
 const parseDateStr = (str) => {
   if (!str) return null;
@@ -64,6 +114,7 @@ export default function App() {
   // Wallets state - dynamic from database, starts empty
   const [wallets, setWallets] = useState([]);
   const [editingWallet, setEditingWallet] = useState(null);
+  const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
   
   // Navigation Tabs state
   const [activeTab, setActiveTab] = useState('overview'); // overview, jars, charts, history, settings
@@ -293,6 +344,21 @@ export default function App() {
       })
       .catch(err => {
         console.error("Lỗi fetch API wallets:", err);
+      });
+
+    // 3. Fetch categories dynamically
+    fetch(`${workerUrl}/api/categories?chat_id=${chatId}`)
+      .then(res => {
+        if (!res.ok) throw new Error("Network response not ok");
+        return res.json();
+      })
+      .then(categoriesList => {
+        if (Array.isArray(categoriesList) && categoriesList.length > 0) {
+          setCategories(categoriesList);
+        }
+      })
+      .catch(err => {
+        console.error("Lỗi fetch API categories:", err);
       });
   }, []);
 
@@ -640,6 +706,7 @@ export default function App() {
             triggerHaptic={triggerHaptic}
             categoryJars={categoryJars}
             onUpdateCategoryJar={handleUpdateCategoryJar}
+            categories={categories}
           />
         )}
 
@@ -652,6 +719,7 @@ export default function App() {
             trendCategory={trendCategory}
             setTrendCategory={setTrendCategory}
             triggerHaptic={triggerHaptic}
+            categories={categories}
           />
         )}
 
@@ -772,6 +840,7 @@ export default function App() {
             onOpenModeGuide={() => setIsModeGuideOpen(true)}
             categoryJars={categoryJars}
             onUpdateCategoryJar={handleUpdateCategoryJar}
+            categories={categories}
           />
         )}
       </main>

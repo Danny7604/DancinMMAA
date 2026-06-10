@@ -40,6 +40,31 @@ export default {
         return new Response(JSON.stringify(accounts || []), { status: 200, headers });
       }
 
+      if (url.pathname === '/api/categories' && request.method === 'GET') {
+        const chatId = url.searchParams.get('chat_id');
+        if (!chatId) return new Response(JSON.stringify({ error: "Missing chat_id" }), { status: 400, headers });
+        let categories = await supabaseFetch(env, `categories?chat_id=eq.${chatId}`);
+        
+        // Tự động khởi tạo danh mục mặc định nếu chưa có (ví dụ khi mới reset DB)
+        if (!categories || categories.length === 0) {
+          const defaultCategories = [];
+          for (const [level1, level2Array] of Object.entries(FIXED_EXPENSE)) {
+            level2Array.forEach(level2 => {
+              defaultCategories.push({ chat_id: chatId, transaction_type: 'chi', level_1: level1, level_2: level2 });
+            });
+          }
+          for (const [level1, level2Array] of Object.entries(FIXED_INCOME)) {
+            level2Array.forEach(level2 => {
+              defaultCategories.push({ chat_id: chatId, transaction_type: 'thu', level_1: level1, level_2: level2 });
+            });
+          }
+          await supabaseFetch(env, 'categories', 'POST', defaultCategories);
+          categories = await supabaseFetch(env, `categories?chat_id=eq.${chatId}`);
+        }
+        
+        return new Response(JSON.stringify(categories || []), { status: 200, headers });
+      }
+
       if (url.pathname === '/api/wallets' && request.method === 'PATCH') {
         try {
           const body = await request.json();

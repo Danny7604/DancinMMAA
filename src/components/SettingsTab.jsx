@@ -1,5 +1,154 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import * as Icons from './Icons';
+
+const CATEGORY_EMOJIS = {
+  // Chi phí sinh hoạt
+  "Ăn uống": "🍔",
+  "Coffee": "☕",
+  "Mua sắm gia đình": "🛒",
+  "Online shopping": "🛍️",
+  "Dating": "❤️",
+  "Pet": "🐱",
+  "Thể thao": "⚽",
+  "Di chuyển": "🚗",
+  "Game": "🎮",
+  // Chi phí cố định
+  "Tiền thuê nhà": "🏠",
+  "Điện nước": "⚡",
+  "Internet": "🌐",
+  "Bảo hiểm": "🛡️",
+  "Học phí": "🎓",
+  // Chi phí phát sinh
+  "Nhậu": "🍻",
+  "Đám tiệc": "🎉",
+  "Quà cáp": "🎁",
+  "Y tế": "🏥",
+  "Du lịch": "✈️",
+  "Sửa xe": "🔧",
+  "Household": "🧹",
+  "Công việc": "💼",
+  "Tín dụng": "💳",
+  "Cho mượn": "💸",
+  // Đầu tư - Tiết kiệm
+  "Quỹ tiết kiệm": "🐖",
+  "Chứng khoán / Vàng": "📈",
+  "Quỹ khác": "💰",
+  // Thu nhập
+  "Lương chính": "💵",
+  "Job phụ": "🛠️",
+  "Job phụ 2": "💻",
+  // Lãi/Lời
+  "Lãi tiết kiệm": "🏦",
+  "Lãi đầu tư": "📊",
+  "Cổ tức": "🪙",
+  // Thưởng/Quà
+  "Thưởng": "🏆",
+  "Được tặng": "🎁",
+  "Trúng thưởng": "🎟️",
+  // Khác
+  "Thu hồi nợ": "🤝",
+  "Bán đồ cũ": "📦"
+};
+
+const DEFAULT_EXPENSE_CATEGORIES = [
+  {
+    id: 'sinhhoat',
+    name: 'Chi phí sinh hoạt',
+    icon: <Icons.Utensils className="w-4 h-4 text-indigo-500" />,
+    sub: [
+      { name: "Ăn uống", icon: "🍔" },
+      { name: "Coffee", icon: "☕" },
+      { name: "Mua sắm gia đình", icon: "🛒" },
+      { name: "Online shopping", icon: "🛍️" },
+      { name: "Dating", icon: "❤️" },
+      { name: "Pet", icon: "🐱" },
+      { name: "Thể thao", icon: "⚽" },
+      { name: "Di chuyển", icon: "🚗" },
+      { name: "Game", icon: "🎮" }
+    ],
+  },
+  {
+    id: 'codinh',
+    name: 'Chi phí cố định',
+    icon: <Icons.Home className="w-4 h-4 text-stone-500" />,
+    sub: [
+      { name: "Tiền thuê nhà", icon: "🏠" },
+      { name: "Điện nước", icon: "⚡" },
+      { name: "Internet", icon: "🌐" },
+      { name: "Bảo hiểm", icon: "🛡️" },
+      { name: "Học phí", icon: "🎓" }
+    ],
+  },
+  {
+    id: 'phatsinh',
+    name: 'Chi phí phát sinh',
+    icon: <Icons.ShoppingBag className="w-4 h-4 text-rose-500" />,
+    sub: [
+      { name: "Nhậu", icon: "🍻" },
+      { name: "Đám tiệc", icon: "🎉" },
+      { name: "Quà cáp", icon: "🎁" },
+      { name: "Y tế", icon: "🏥" },
+      { name: "Du lịch", icon: "✈️" },
+      { name: "Sửa xe", icon: "🔧" },
+      { name: "Household", icon: "🧹" },
+      { name: "Công việc", icon: "💼" },
+      { name: "Tín dụng", icon: "💳" },
+      { name: "Cho mượn", icon: "💸" }
+    ],
+  },
+  {
+    id: 'daututietkiem',
+    name: 'Đầu tư - Tiết kiệm',
+    icon: <Icons.TrendingUp className="w-4 h-4 text-purple-500" />,
+    sub: [
+      { name: "Quỹ tiết kiệm", icon: "🐖" },
+      { name: "Chứng khoán / Vàng", icon: "📈" },
+      { name: "Quỹ khác", icon: "💰" }
+    ],
+  },
+];
+
+const DEFAULT_INCOME_CATEGORIES = [
+  {
+    id: 'thunhap',
+    name: 'Thu nhập',
+    icon: <Icons.Wallet className="w-4 h-4 text-emerald-500" />,
+    sub: [
+      { name: "Lương chính", icon: "💵" },
+      { name: "Job phụ", icon: "🛠️" },
+      { name: "Job phụ 2", icon: "💻" }
+    ],
+  },
+  {
+    id: 'lailoi',
+    name: 'Lãi/Lời',
+    icon: <Icons.Target className="w-4 h-4 text-amber-500" />,
+    sub: [
+      { name: "Lãi tiết kiệm", icon: "🏦" },
+      { name: "Lãi đầu tư", icon: "📊" },
+      { name: "Cổ tức", icon: "🪙" }
+    ],
+  },
+  {
+    id: 'thuongqua',
+    name: 'Thưởng/Quà',
+    icon: <Icons.Award className="w-4 h-4 text-indigo-500" />,
+    sub: [
+      { name: "Thưởng", icon: "🏆" },
+      { name: "Được tặng", icon: "🎁" },
+      { name: "Trúng thưởng", icon: "🎟️" }
+    ],
+  },
+  {
+    id: 'khac',
+    name: 'Khác',
+    icon: <Icons.HelpCircle className="w-4 h-4 text-stone-500" />,
+    sub: [
+      { name: "Thu hồi nợ", icon: "🤝" },
+      { name: "Bán đồ cũ", icon: "📦" }
+    ],
+  },
+];
 
 export default function SettingsTab({
   jarsAllocation = { nec: 55, edu: 10, ltss: 10, play: 10, ffa: 10, give: 5 },
@@ -15,6 +164,7 @@ export default function SettingsTab({
   onOpenModeGuide,
   categoryJars = {},
   onUpdateCategoryJar,
+  categories = [],
 }) {
   const formatVND = (val) => (val ?? 0).toLocaleString('vi-VN') + 'đ';
   const [activeSubTab, setActiveSubTab] = useState('categories'); // categories, finance
@@ -26,106 +176,133 @@ export default function SettingsTab({
   const [goals, setGoals] = useState([...savingsGoals]);
   const [limits, setLimits] = useState([...categoryLimits]);
 
-  // Categories Local Mocks matching FIXED_EXPENSE / FIXED_INCOME in database
-  const [expenseCategories, setExpenseCategories] = useState([
-    {
-      id: 'sinhhoat',
-      name: 'Chi phí sinh hoạt',
-      icon: <Icons.Utensils className="w-4 h-4 text-indigo-500" />,
-      sub: [
-        { name: "Ăn uống", icon: "🍔" },
-        { name: "Coffee", icon: "☕" },
-        { name: "Mua sắm gia đình", icon: "🛒" },
-        { name: "Online shopping", icon: "🛍️" },
-        { name: "Dating", icon: "❤️" },
-        { name: "Pet", icon: "🐱" },
-        { name: "Thể thao", icon: "⚽" },
-        { name: "Di chuyển", icon: "🚗" },
-        { name: "Game", icon: "🎮" }
-      ],
-    },
-    {
-      id: 'codinh',
-      name: 'Chi phí cố định',
-      icon: <Icons.Home className="w-4 h-4 text-stone-500" />,
-      sub: [
-        { name: "Tiền thuê nhà", icon: "🏠" },
-        { name: "Điện nước", icon: "⚡" },
-        { name: "Internet", icon: "🌐" },
-        { name: "Bảo hiểm", icon: "🛡️" },
-        { name: "Học phí", icon: "🎓" }
-      ],
-    },
-    {
-      id: 'phatsinh',
-      name: 'Chi phí phát sinh',
-      icon: <Icons.ShoppingBag className="w-4 h-4 text-rose-500" />,
-      sub: [
-        { name: "Nhậu", icon: "🍻" },
-        { name: "Đám tiệc", icon: "🎉" },
-        { name: "Quà cáp", icon: "🎁" },
-        { name: "Y tế", icon: "🏥" },
-        { name: "Du lịch", icon: "✈️" },
-        { name: "Sửa xe", icon: "🔧" },
-        { name: "Household", icon: "🧹" },
-        { name: "Công việc", icon: "💼" },
-        { name: "Tín dụng", icon: "💳" },
-        { name: "Cho mượn", icon: "💸" }
-      ],
-    },
-    {
-      id: 'daututietkiem',
-      name: 'Đầu tư - Tiết kiệm',
-      icon: <Icons.TrendingUp className="w-4 h-4 text-purple-500" />,
-      sub: [
-        { name: "Quỹ tiết kiệm", icon: "🐖" },
-        { name: "Chứng khoán / Vàng", icon: "📈" },
-        { name: "Quỹ khác", icon: "💰" }
-      ],
-    },
-  ]);
+  // Group expense categories dynamically from database prop categories
+  const expenseCategories = useMemo(() => {
+    const sourceList = categories.length > 0 ? categories : [];
+    const chiCats = sourceList.filter(c => c.transaction_type === 'chi');
+    
+    const grouped = {};
+    chiCats.forEach(c => {
+      if (!c.level_1 || !c.level_2) return;
+      if (!grouped[c.level_1]) {
+        grouped[c.level_1] = [];
+      }
+      if (!grouped[c.level_1].some(item => item.name === c.level_2)) {
+        grouped[c.level_1].push({
+          name: c.level_2,
+          icon: CATEGORY_EMOJIS[c.level_2] || "📁"
+        });
+      }
+    });
 
-  const [incomeCategories, setIncomeCategories] = useState([
-    {
-      id: 'thunhap',
-      name: 'Thu nhập',
-      icon: <Icons.Wallet className="w-4 h-4 text-emerald-500" />,
-      sub: [
-        { name: "Lương chính", icon: "💵" },
-        { name: "Job phụ", icon: "🛠️" },
-        { name: "Job phụ 2", icon: "💻" }
-      ],
-    },
-    {
-      id: 'lailoi',
-      name: 'Lãi/Lời',
-      icon: <Icons.Target className="w-4 h-4 text-amber-500" />,
-      sub: [
-        { name: "Lãi tiết kiệm", icon: "🏦" },
-        { name: "Lãi đầu tư", icon: "📊" },
-        { name: "Cổ tức", icon: "🪙" }
-      ],
-    },
-    {
-      id: 'thuongqua',
-      name: 'Thưởng/Quà',
-      icon: <Icons.Award className="w-4 h-4 text-indigo-500" />,
-      sub: [
-        { name: "Thưởng", icon: "🏆" },
-        { name: "Được tặng", icon: "🎁" },
-        { name: "Trúng thưởng", icon: "🎟️" }
-      ],
-    },
-    {
-      id: 'khac',
-      name: 'Khác',
-      icon: <Icons.HelpCircle className="w-4 h-4 text-stone-500" />,
-      sub: [
-        { name: "Thu hồi nợ", icon: "🤝" },
-        { name: "Bán đồ cũ", icon: "📦" }
-      ],
-    },
-  ]);
+    if (Object.keys(grouped).length === 0) {
+      return DEFAULT_EXPENSE_CATEGORIES;
+    }
+
+    const order = ['Chi phí sinh hoạt', 'Chi phí cố định', 'Chi phí phát sinh', 'Đầu tư - Tiết kiệm'];
+    const result = [];
+    
+    // First, add standard groups in order
+    order.forEach(l1 => {
+      if (grouped[l1]) {
+        const id = l1 === 'Chi phí sinh hoạt' ? 'sinhhoat'
+                 : l1 === 'Chi phí cố định' ? 'codinh'
+                 : l1 === 'Chi phí phát sinh' ? 'phatsinh'
+                 : 'daututietkiem';
+        
+        let iconElement = <Icons.HelpCircle className="w-4 h-4 text-stone-500" />;
+        if (l1 === 'Chi phí sinh hoạt') iconElement = <Icons.Utensils className="w-4 h-4 text-indigo-500" />;
+        else if (l1 === 'Chi phí cố định') iconElement = <Icons.Home className="w-4 h-4 text-stone-500" />;
+        else if (l1 === 'Chi phí phát sinh') iconElement = <Icons.ShoppingBag className="w-4 h-4 text-rose-500" />;
+        else if (l1 === 'Đầu tư - Tiết kiệm') iconElement = <Icons.TrendingUp className="w-4 h-4 text-purple-500" />;
+
+        result.push({
+          id,
+          name: l1,
+          icon: iconElement,
+          sub: grouped[l1]
+        });
+        delete grouped[l1];
+      }
+    });
+    
+    // Then add any remaining custom groups
+    Object.keys(grouped).forEach(l1 => {
+      const id = l1.toLowerCase().replace(/[^a-z0-9]/g, '');
+      result.push({
+        id,
+        name: l1,
+        icon: <Icons.HelpCircle className="w-4 h-4 text-stone-500" />,
+        sub: grouped[l1]
+      });
+    });
+
+    return result;
+  }, [categories]);
+
+  // Group income categories dynamically from database prop categories
+  const incomeCategories = useMemo(() => {
+    const sourceList = categories.length > 0 ? categories : [];
+    const thuCats = sourceList.filter(c => c.transaction_type === 'thu');
+    
+    const grouped = {};
+    thuCats.forEach(c => {
+      if (!c.level_1 || !c.level_2) return;
+      if (!grouped[c.level_1]) {
+        grouped[c.level_1] = [];
+      }
+      if (!grouped[c.level_1].some(item => item.name === c.level_2)) {
+        grouped[c.level_1].push({
+          name: c.level_2,
+          icon: CATEGORY_EMOJIS[c.level_2] || "📁"
+        });
+      }
+    });
+
+    if (Object.keys(grouped).length === 0) {
+      return DEFAULT_INCOME_CATEGORIES;
+    }
+
+    const order = ['Thu nhập', 'Lãi/Lời', 'Thưởng/Quà', 'Khác'];
+    const result = [];
+    
+    // First, add standard groups in order
+    order.forEach(l1 => {
+      if (grouped[l1]) {
+        const id = l1 === 'Thu nhập' ? 'thunhap'
+                 : l1 === 'Lãi/Lời' ? 'lailoi'
+                 : l1 === 'Thưởng/Quà' ? 'thuongqua'
+                 : 'khac';
+        
+        let iconElement = <Icons.HelpCircle className="w-4 h-4 text-stone-500" />;
+        if (l1 === 'Thu nhập') iconElement = <Icons.Wallet className="w-4 h-4 text-emerald-500" />;
+        else if (l1 === 'Lãi/Lời') iconElement = <Icons.Target className="w-4 h-4 text-amber-500" />;
+        else if (l1 === 'Thưởng/Quà') iconElement = <Icons.Award className="w-4 h-4 text-indigo-500" />;
+        else if (l1 === 'Khác') iconElement = <Icons.HelpCircle className="w-4 h-4 text-stone-500" />;
+
+        result.push({
+          id,
+          name: l1,
+          icon: iconElement,
+          sub: grouped[l1]
+        });
+        delete grouped[l1];
+      }
+    });
+    
+    // Then add any remaining custom groups
+    Object.keys(grouped).forEach(l1 => {
+      const id = l1.toLowerCase().replace(/[^a-z0-9]/g, '');
+      result.push({
+        id,
+        name: l1,
+        icon: <Icons.HelpCircle className="w-4 h-4 text-stone-500" />,
+        sub: grouped[l1]
+      });
+    });
+
+    return result;
+  }, [categories]);
 
   // Handle local Jars slider changes
   const handleJarChange = (key, val) => {

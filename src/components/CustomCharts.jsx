@@ -247,7 +247,7 @@ export function DonutChart({ data = [], currencySymbol = 'đ', totalLabel = 'T�
   if (total === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-48 text-stone-500 dark:text-stone-400 text-sm">
-        <p>Không có dữ liệu chi tiêu trong kỳ này</p>
+        <p>Không có dữ liệu {totalLabel.toLowerCase()} trong kỳ này</p>
       </div>
     );
   }

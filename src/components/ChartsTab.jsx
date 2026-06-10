@@ -10,6 +10,7 @@ export default function ChartsTab({
   trendCategory = 'all',
   setTrendCategory,
   triggerHaptic,
+  categories = [],
 }) {
   const [periodPreset, setPeriodPreset] = useState('this_month'); // this_month, last_month, this_year
 
@@ -25,21 +26,34 @@ export default function ChartsTab({
 
   // Available filter options for Income Donut (Level 1 main categories)
   const incomeL1Options = useMemo(() => {
-    const set = new Set(transactions.filter(t => t.type === 'thu').map(t => t.level1).filter(Boolean));
+    const sourceList = categories.length > 0 ? categories : [];
+    const set = new Set(sourceList.filter(c => c.transaction_type === 'thu').map(c => c.level_1).filter(Boolean));
+    if (set.size === 0) {
+      return ['all', 'Thu nhập', 'Lãi/Lời', 'Thưởng/Quà', 'Khác'];
+    }
     return ['all', ...Array.from(set)];
-  }, [transactions]);
+  }, [categories]);
 
   // Available filter options for Expense Donut (Level 1 main categories)
   const expenseL1Options = useMemo(() => {
-    const set = new Set(transactions.filter(t => t.type === 'chi').map(t => t.level1).filter(Boolean));
+    const sourceList = categories.length > 0 ? categories : [];
+    const set = new Set(sourceList.filter(c => c.transaction_type === 'chi').map(c => c.level_1).filter(Boolean));
+    if (set.size === 0) {
+      return ['all', 'Chi phí sinh hoạt', 'Chi phí cố định', 'Chi phí phát sinh', 'Đầu tư - Tiết kiệm'];
+    }
     return ['all', ...Array.from(set)];
-  }, [transactions]);
+  }, [categories]);
 
   // Available Level 2 categories for Trend Dropdown filter
   const trendL2Options = useMemo(() => {
-    const set = new Set(transactions.filter(t => t.type === 'chi').map(t => t.level2).filter(Boolean));
+    const sourceList = categories.length > 0 ? categories : [];
+    const set = new Set(sourceList.filter(c => c.transaction_type === 'chi').map(c => c.level_2).filter(Boolean));
+    if (set.size === 0) {
+      const txSet = new Set(transactions.filter(t => t.type === 'chi').map(t => t.level2).filter(Boolean));
+      return ['all', ...Array.from(txSet)];
+    }
     return ['all', ...Array.from(set)];
-  }, [transactions]);
+  }, [categories, transactions]);
 
   // Compute Income Structure data based on transactions or mock fallback
   // Defaults to Level 2 (subcategory) grouping!
@@ -53,6 +67,18 @@ export default function ChartsTab({
     if (incomes.length === 0) {
       if (transactions.filter(t => t.type === 'thu').length > 0) {
         return [];
+      }
+      const thuCats = categories.filter(c => {
+        if (c.transaction_type !== 'thu') return false;
+        if (incomeL1Filter !== 'all' && c.level_1 !== incomeL1Filter) return false;
+        return true;
+      });
+      if (thuCats.length > 0) {
+        const uniqueL2s = Array.from(new Set(thuCats.map(c => c.level_2).filter(Boolean)));
+        return uniqueL2s.map(label => ({
+          label,
+          value: 0
+        }));
       }
       return [
         { label: 'Lương chính', value: monthlyIncome * 0.70 },
@@ -72,7 +98,7 @@ export default function ChartsTab({
       label,
       value: groups[label]
     })).sort((a, b) => b.value - a.value);
-  }, [transactions, monthlyIncome, incomeL1Filter]);
+  }, [transactions, monthlyIncome, incomeL1Filter, categories]);
 
   // Compute Expense allocation data based on transactions or mock fallback
   // Defaults to Level 2 (subcategory) grouping!
@@ -86,6 +112,18 @@ export default function ChartsTab({
     if (expenses.length === 0) {
       if (transactions.filter(t => t.type === 'chi').length > 0) {
         return [];
+      }
+      const chiCats = categories.filter(c => {
+        if (c.transaction_type !== 'chi') return false;
+        if (expenseL1Filter !== 'all' && c.level_1 !== expenseL1Filter) return false;
+        return true;
+      });
+      if (chiCats.length > 0) {
+        const uniqueL2s = Array.from(new Set(chiCats.map(c => c.level_2).filter(Boolean)));
+        return uniqueL2s.map(label => ({
+          label,
+          value: 0
+        }));
       }
       return [
         { label: 'Ăn uống', value: monthlyExpense * 0.35 },
@@ -108,7 +146,7 @@ export default function ChartsTab({
       label,
       value: groups[label]
     })).sort((a, b) => b.value - a.value);
-  }, [transactions, monthlyExpense, expenseL1Filter]);
+  }, [transactions, monthlyExpense, expenseL1Filter, categories]);
 
   // Compute sums for the top summary cards
   const filteredIncomeSum = useMemo(() => {
@@ -118,6 +156,43 @@ export default function ChartsTab({
   const filteredExpenseSum = useMemo(() => {
     return expenseChartData.reduce((sum, item) => sum + item.value, 0);
   }, [expenseChartData]);
+
+  // Compute total Level 2 categories configured on the system for the active filter
+  const totalIncomeL2Count = useMemo(() => {
+    const sourceList = categories.length > 0 ? categories : [];
+    const filtered = sourceList.filter(c => {
+      if (c.transaction_type !== 'thu') return false;
+      if (incomeL1Filter !== 'all' && c.level_1 !== incomeL1Filter) return false;
+      return true;
+    });
+    if (filtered.length === 0) {
+      if (incomeL1Filter === 'all') return 11;
+      if (incomeL1Filter === 'Thu nhập') return 3;
+      if (incomeL1Filter === 'Lãi/Lời') return 3;
+      if (incomeL1Filter === 'Thưởng/Quà') return 3;
+      if (incomeL1Filter === 'Khác') return 2;
+      return 0;
+    }
+    return new Set(filtered.map(c => c.level_2).filter(Boolean)).size;
+  }, [categories, incomeL1Filter]);
+
+  const totalExpenseL2Count = useMemo(() => {
+    const sourceList = categories.length > 0 ? categories : [];
+    const filtered = sourceList.filter(c => {
+      if (c.transaction_type !== 'chi') return false;
+      if (expenseL1Filter !== 'all' && c.level_1 !== expenseL1Filter) return false;
+      return true;
+    });
+    if (filtered.length === 0) {
+      if (expenseL1Filter === 'all') return 27;
+      if (expenseL1Filter === 'Chi phí sinh hoạt') return 9;
+      if (expenseL1Filter === 'Chi phí cố định') return 5;
+      if (expenseL1Filter === 'Chi phí phát sinh') return 10;
+      if (expenseL1Filter === 'Đầu tư - Tiết kiệm') return 3;
+      return 0;
+    }
+    return new Set(filtered.map(c => c.level_2).filter(Boolean)).size;
+  }, [categories, expenseL1Filter]);
 
   return (
     <div className="space-y-6 animate-fade-in pb-12">
@@ -206,7 +281,7 @@ export default function ChartsTab({
             {filteredIncomeSum.toLocaleString('vi-VN')} đ
           </span>
           <span className="text-[11px] text-stone-550 dark:text-stone-450 block mt-1.5">
-            {incomeChartData.length} danh mục cấp 2
+            {totalIncomeL2Count} danh mục cấp 2
           </span>
         </div>
 
@@ -284,7 +359,7 @@ export default function ChartsTab({
             {filteredExpenseSum.toLocaleString('vi-VN')} đ
           </span>
           <span className="text-[11px] text-stone-550 dark:text-stone-450 block mt-1.5">
-            {expenseChartData.length} danh mục cấp 2
+            {totalExpenseL2Count} danh mục cấp 2
           </span>
         </div>
 

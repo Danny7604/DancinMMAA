@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import * as Icons from './Icons';
 
@@ -9,6 +9,55 @@ const JAR_NAMES = {
   play: 'Hũ Hưởng thụ',
   ffa: 'Hũ Tự do tài chính',
   give: 'Hũ Cho đi'
+};
+
+const CATEGORY_EMOJIS = {
+  // Chi phí sinh hoạt
+  "Ăn uống": "🍔",
+  "Coffee": "☕",
+  "Mua sắm gia đình": "🛒",
+  "Online shopping": "🛍️",
+  "Dating": "❤️",
+  "Pet": "🐱",
+  "Thể thao": "⚽",
+  "Di chuyển": "🚗",
+  "Game": "🎮",
+  // Chi phí cố định
+  "Tiền thuê nhà": "🏠",
+  "Điện nước": "⚡",
+  "Internet": "🌐",
+  "Bảo hiểm": "🛡️",
+  "Học phí": "🎓",
+  // Chi phí phát sinh
+  "Nhậu": "🍻",
+  "Đám tiệc": "🎉",
+  "Quà cáp": "🎁",
+  "Y tế": "🏥",
+  "Du lịch": "✈️",
+  "Sửa xe": "🔧",
+  "Household": "🧹",
+  "Công việc": "💼",
+  "Tín dụng": "💳",
+  "Cho mượn": "💸",
+  // Đầu tư - Tiết kiệm
+  "Quỹ tiết kiệm": "🐖",
+  "Chứng khoán / Vàng": "📈",
+  "Quỹ khác": "💰",
+  // Thu nhập
+  "Lương chính": "💵",
+  "Job phụ": "🛠️",
+  "Job phụ 2": "💻",
+  // Lãi/Lời
+  "Lãi tiết kiệm": "🏦",
+  "Lãi đầu tư": "📊",
+  "Cổ tức": "🪙",
+  // Thưởng/Quà
+  "Thưởng": "🏆",
+  "Được tặng": "🎁",
+  "Trúng thưởng": "🎟️",
+  // Khác
+  "Thu hồi nợ": "🤝",
+  "Bán đồ cũ": "📦"
 };
 
 const ALL_EXPENSE_CATEGORIES = [
@@ -84,6 +133,7 @@ export default function JarsTab({
   triggerHaptic,
   categoryJars = {},
   onUpdateCategoryJar,
+  categories = [],
 }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newGoal, setNewGoal] = useState({ name: '', target: '', current: '0', image: '💰', note: '' });
@@ -91,6 +141,61 @@ export default function JarsTab({
   const [newLimit, setNewLimit] = useState({ name: '', target: '' });
   const [expandedJar, setExpandedJar] = useState(null);
   const [activeMappingJar, setActiveMappingJar] = useState(null);
+
+  // Group expense categories dynamically from database prop categories
+  const expenseCategories = useMemo(() => {
+    const sourceList = categories.length > 0 ? categories : [];
+    const chiCats = sourceList.filter(c => c.transaction_type === 'chi');
+    
+    const grouped = {};
+    chiCats.forEach(c => {
+      if (!c.level_1 || !c.level_2) return;
+      if (!grouped[c.level_1]) {
+        grouped[c.level_1] = [];
+      }
+      if (!grouped[c.level_1].some(item => item.name === c.level_2)) {
+        grouped[c.level_1].push({
+          name: c.level_2,
+          icon: CATEGORY_EMOJIS[c.level_2] || '📁'
+        });
+      }
+    });
+
+    if (Object.keys(grouped).length === 0) {
+      return ALL_EXPENSE_CATEGORIES;
+    }
+
+    const order = ['Chi phí sinh hoạt', 'Chi phí cố định', 'Chi phí phát sinh', 'Đầu tư - Tiết kiệm'];
+    const result = [];
+    
+    // First, add standard groups in order
+    order.forEach(l1 => {
+      if (grouped[l1]) {
+        const id = l1 === 'Chi phí sinh hoạt' ? 'sinhhoat'
+                 : l1 === 'Chi phí cố định' ? 'codinh'
+                 : l1 === 'Chi phí phát sinh' ? 'phatsinh'
+                 : 'daututietkiem';
+        result.push({
+          id,
+          name: l1,
+          sub: grouped[l1]
+        });
+        delete grouped[l1];
+      }
+    });
+    
+    // Then add any remaining custom groups
+    Object.keys(grouped).forEach(l1 => {
+      const id = l1.toLowerCase().replace(/[^a-z0-9]/g, '');
+      result.push({
+        id,
+        name: l1,
+        sub: grouped[l1]
+      });
+    });
+
+    return result;
+  }, [categories]);
 
   useEffect(() => {
     if (activeMappingJar) {
@@ -701,9 +806,8 @@ export default function JarsTab({
               </div>
             </div>
 
-            {/* Middle scrollable area: Grouped categories */}
             <div className="flex-grow overflow-y-auto no-scrollbar px-6 py-2 space-y-5">
-              {ALL_EXPENSE_CATEGORIES.map(group => (
+              {expenseCategories.map(group => (
                 <div key={group.id} className="space-y-2">
                   <h4 className="text-[10px] text-stone-400 dark:text-stone-500 font-black uppercase tracking-wider pl-1 flex items-center gap-1.5">
                     {group.id === 'sinhhoat' ? (
