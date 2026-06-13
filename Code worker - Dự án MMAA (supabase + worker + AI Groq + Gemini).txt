@@ -303,6 +303,7 @@ async function transcribeAudio(env, filePath) {
   const formData = new FormData();
   formData.append('file', audioBlob, 'audio.ogg');
   formData.append('model', 'whisper-large-v3');
+  formData.append('prompt', 'Techcombank, thẻ tín dụng, tiền mặt, ăn sáng, cafe, trà sữa, nhậu, mua sắm, 50k, 100k, lương, thu nhập, chi phí sinh hoạt, hũ thiết yếu.');
 
   const groqKey = env.GROQ_API_KEY || env.GroqAPIkey || env.groq_api_key;
   
@@ -546,6 +547,10 @@ async function processTransaction(chatId, text, env, userName) {
   const now = new Date();
   const currentTime = now.toLocaleTimeString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit' });
 
+  // 🌟 BƯỚC 0: LẤY 10 GIAO DỊCH GẦN ĐÂY ĐỂ AI TỰ HỌC THÓI QUEN CHI TIÊU
+  const recentTxs = await supabaseFetch(env, `transactions?chat_id=eq.${chatId}&limit=10&order=created_at.desc`) || [];
+  const recentTxsFormatted = recentTxs.map(tx => `- ${tx.date || ''}: ${tx.type === 'chi' ? 'Chi' : 'Thu'} ${parseInt(tx.amount || 0).toLocaleString('vi-VN')}đ vào nhóm [${tx.level1} -> ${tx.level2}] (Ghi chú: ${tx.note || ''})`).join('\n');
+
   // 🌟 BƯỚC 1: LẤY TỪ ĐIỂN DANH MỤC RIÊNG CỦA USER TỪ SUPABASE
   const userCategories = await supabaseFetch(env, `categories?chat_id=eq.${chatId}`);
   
@@ -573,9 +578,12 @@ async function processTransaction(chatId, text, env, userName) {
   const expenseStructure = JSON.stringify(userExpense, null, 2);
   const incomeStructure = JSON.stringify(userIncome, null, 2);
 
-  // 🌟 BƯỚC 3: PROMPT ĐƯỢC GIỮ NGUYÊN - AI SẼ NHÌN THẤY DANH MỤC MỚI NHẤT
+  // 🌟 BƯỚC 3: PROMPT ĐƯỢC CẬP NHẬT TỰ HỌC & SỬA NGỌNG
   const systemPrompt = `Bạn là trợ lý tài chính. Xưng "mình" và "${userName}".
   Thời gian hiện tại của người dùng đang là: ${currentTime}.
+
+  LỊCH SỬ GIAO DỊCH GẦN ĐÂY CỦA NGƯỜI DÙNG (Dùng để tham khảo thói quen chi tiêu khi người dùng viết tắt, nói ngọng hoặc thiếu ý):
+  ${recentTxsFormatted || 'Chưa có giao dịch gần đây.'}
 
   Quy tắc phân loại (BẮT BUỘC tuân thủ chặt chẽ):
   - CHI TIÊU: Dựa vào cấu trúc JSON sau để xác định "level1" và "level2":
@@ -585,7 +593,9 @@ async function processTransaction(chatId, text, env, userName) {
   - Nguồn tiền: ${accountsList || 'Tiền mặt'}
   - Tài khoản mặc định (ví chính): Nếu người dùng KHÔNG chỉ định rõ ví thanh toán trong câu (ví dụ chỉ nói 'ăn trưa 50k', 'mua cafe 30k'), bạn BẮT BUỘC phải chọn nguồn tiền là '${defaultAccountName}'. Chỉ khi nào họ nói rõ ví khác (ví dụ: 'thẻ tín dụng', 'tiền mặt', v.v.) thì mới đổi.
 
-  LƯU Ý QUAN TRỌNG:
+  LƯU Ý QUAN TRỌNG VỀ PHÁT ÂM & LỖI CHÍNH TẢ:
+  - Giọng nói hoặc tin nhắn của người dùng có thể bị lỗi chính tả hoặc phát âm ngọng (ví dụ Whisper dịch nhầm: 'ăn xáng'/'ăn chửa' -> 'ăn sáng'/'ăn trưa'; 'phê'/'ca phe' -> 'cafe'; 'ngân hằng' -> 'ngân hàng'; 'tiền mẹt'/'tiền mạt' -> 'tiền mặt'). Hãy tự động sửa lỗi và hiểu đúng giao dịch gốc.
+  - Hãy dựa vào Lịch sử giao dịch gần đây để phán đoán thói quen chi tiêu. Nếu người dùng nói câu ngắn hoặc ngọng trùng khớp với một thói quen chi tiêu trước đây, hãy ưu tiên phân loại chính xác theo thói quen cũ đó.
   - Chỉ phân loại là "transaction" nếu trong câu nói của người dùng có chứa số tiền cụ thể hoặc có thể suy luận rõ ràng (ví dụ: 'ăn trưa 50k', 'mua cafe ba chục'). Nếu chỉ nói chung chung không có số tiền (ví dụ: 'tôi đi ăn phở', 'tôi mới mua áo khoác'), hãy phân loại là "chat" và phản hồi thân thiện, đồng thời hỏi nhẹ nhàng xem người dùng có muốn ghi chép giao dịch đó kèm số tiền hay không.
 
   Ý ĐỊNH NGƯỜI DÙNG:
