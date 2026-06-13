@@ -61,8 +61,52 @@ export default {
           await supabaseFetch(env, 'categories', 'POST', defaultCategories);
           categories = await supabaseFetch(env, `categories?chat_id=eq.${chatId}`);
         }
-        
         return new Response(JSON.stringify(categories || []), { status: 200, headers });
+      }
+
+      if (url.pathname === '/api/categories' && request.method === 'POST') {
+        try {
+          const body = await request.json();
+          const { chat_id, transaction_type, level_1, level_2 } = body;
+          
+          if (!chat_id || !transaction_type || !level_1 || !level_2) {
+            return new Response(JSON.stringify({ error: "Missing required fields" }), { status: 400, headers });
+          }
+
+          // Kiểm tra trùng
+          const existing = await supabaseFetch(env, `categories?chat_id=eq.${chat_id}&transaction_type=eq.${transaction_type}&level_1=eq.${encodeURIComponent(level_1)}&level_2=eq.${encodeURIComponent(level_2)}`);
+          if (existing && existing.length > 0) {
+            return new Response(JSON.stringify(existing[0]), { status: 200, headers });
+          }
+
+          const inserted = await supabaseFetch(env, 'categories', 'POST', {
+            chat_id,
+            transaction_type,
+            level_1,
+            level_2
+          }, 'return=representation');
+
+          const record = (Array.isArray(inserted) && inserted.length > 0) ? inserted[0] : (inserted || { chat_id, transaction_type, level_1, level_2 });
+          return new Response(JSON.stringify(record), { status: 201, headers });
+        } catch (err) {
+          return new Response(JSON.stringify({ error: err.message }), { status: 500, headers });
+        }
+      }
+
+      if (url.pathname === '/api/categories' && request.method === 'DELETE') {
+        try {
+          const body = await request.json();
+          const { chat_id, transaction_type, level_1, level_2 } = body;
+          
+          if (!chat_id || !transaction_type || !level_1 || !level_2) {
+            return new Response(JSON.stringify({ error: "Missing required fields" }), { status: 400, headers });
+          }
+
+          await supabaseFetch(env, `categories?chat_id=eq.${chat_id}&transaction_type=eq.${transaction_type}&level_1=eq.${encodeURIComponent(level_1)}&level_2=eq.${encodeURIComponent(level_2)}`, 'DELETE');
+          return new Response(JSON.stringify({ success: true }), { status: 200, headers });
+        } catch (err) {
+          return new Response(JSON.stringify({ error: err.message }), { status: 500, headers });
+        }
       }
 
       if (url.pathname === '/api/wallets' && request.method === 'PATCH') {
@@ -223,6 +267,22 @@ async function sendMessage(env, chatId, text, keyboard = null) {
   });
 }
 
+function mapLevel1(input, type) {
+  const clean = input.toLowerCase().trim();
+  if (type === 'chi') {
+    if (clean.includes('sinh hoat') || clean.includes('sinh hoạt')) return 'Chi phí sinh hoạt';
+    if (clean.includes('co dinh') || clean.includes('cố định')) return 'Chi phí cố định';
+    if (clean.includes('phat sinh') || clean.includes('phát sinh')) return 'Chi phí phát sinh';
+    if (clean.includes('dau tu') || clean.includes('đầu tư') || clean.includes('tiet kiem') || clean.includes('tiết kiệm')) return 'Đầu tư - Tiết kiệm';
+  } else {
+    if (clean.includes('thu nhap') || clean.includes('thu nhập')) return 'Thu nhập';
+    if (clean.includes('lai') || clean.includes('lãi') || clean.includes('loi') || clean.includes('lời')) return 'Lãi/Lời';
+    if (clean.includes('thuong') || clean.includes('thưởng') || clean.includes('qua') || clean.includes('quà')) return 'Thưởng/Quà';
+    if (clean.includes('khac') || clean.includes('khác')) return 'Khác';
+  }
+  return null;
+}
+
 async function getFilePath(env, fileId) {
   const url = `https://api.telegram.org/bot${env.TelegramToken}/getFile?file_id=${fileId}`;
   const response = await fetch(url);
@@ -357,6 +417,56 @@ Chào mừng <b>${name}</b> đến với Dancin MMAA! 🚀 Từ hôm nay, việc
       body: JSON.stringify({ chat_id: chatId, photo: chartUrl, caption: "📊 Phân bổ dòng tiền tháng này." })
     });
     return;
+  }
+
+  // 4b. LỆNH /THEMDANHMUC
+  if (text.startsWith('/themdanhmuc')) {
+    const parts = text.split(/\s+/);
+    if (parts.length < 3) {
+      const msg = `⚠️ <b>Sai cú pháp!</b>\n\nVui lòng nhập theo cú pháp:\n<code>/themdanhmuc [chi/thu] [Tên cấp 1], [Tên cấp 2]</code>\n\nVí dụ:\n• <code>/themdanhmuc chi Chi phí sinh hoạt, Trà sữa</code>\n• <code>/themdanhmuc thu Thu nhập, Job phụ 3</code>`;
+      return sendMessage(env, chatId, msg);
+    }
+    
+    const typeInput = parts[1].toLowerCase();
+    const type = (typeInput === 'thu' || typeInput === 'income') ? 'thu' : 'chi';
+    
+    const remainingText = parts.slice(2).join(" ");
+    const commaIndex = remainingText.indexOf(',');
+    if (commaIndex === -1) {
+      const msg = `⚠️ <b>Thiếu dấu phẩy phân tách!</b>\n\nVui lòng dùng dấu phẩy (<code>,</code>) để phân tách tên cấp 1 và cấp 2.\n\nVí dụ: <code>/themdanhmuc chi Chi phí sinh hoạt, Trà sữa</code>`;
+      return sendMessage(env, chatId, msg);
+    }
+    
+    const rawL1 = remainingText.substring(0, commaIndex).trim();
+    const rawL2 = remainingText.substring(commaIndex + 1).trim();
+    
+    const level1 = mapLevel1(rawL1, type);
+    if (!level1) {
+      const standardL1s = type === 'chi' 
+        ? ["Chi phí sinh hoạt", "Chi phí cố định", "Chi phí phát sinh", "Đầu tư - Tiết kiệm"]
+        : ["Thu nhập", "Lãi/Lời", "Thưởng/Quà", "Khác"];
+      const msg = `⚠️ <b>Danh mục cấp 1 không hợp lệ!</b>\n\nDanh mục cấp 1 phải thuộc một trong các nhóm:\n${standardL1s.map(l => `• <code>${l}</code>`).join('\n')}`;
+      return sendMessage(env, chatId, msg);
+    }
+    
+    if (!rawL2) {
+      const msg = `⚠️ <b>Tên danh mục cấp 2 không được để trống!</b>`;
+      return sendMessage(env, chatId, msg);
+    }
+    
+    const existing = await supabaseFetch(env, `categories?chat_id=eq.${chatId}&transaction_type=eq.${type}&level_1=eq.${encodeURIComponent(level1)}&level_2=eq.${encodeURIComponent(rawL2)}`);
+    if (existing && existing.length > 0) {
+      return sendMessage(env, chatId, `💡 Danh mục <b>${level1} ➡️ ${rawL2}</b> đã tồn tại sẵn trong hệ thống.`);
+    }
+    
+    await supabaseFetch(env, 'categories', 'POST', {
+      chat_id: chatId,
+      transaction_type: type,
+      level_1: level1,
+      level_2: rawL2
+    });
+    
+    return sendMessage(env, chatId, `✅ <b>Thành công!</b>\n\nĐã thêm danh mục mới vào hệ thống:\n📁 <b>[${type === 'chi' ? 'CHI TÀI KHOẢN' : 'THU NHẬP'}] ${level1} ➡️ ${rawL2}</b>`);
   }
 
   // 5. GIAO DỊCH QUA AI

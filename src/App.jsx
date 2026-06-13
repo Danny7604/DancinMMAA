@@ -108,6 +108,10 @@ const parseDateStr = (str) => {
 };
 
 export default function App() {
+  const tg = window.Telegram?.WebApp;
+  const chatId = tg?.initDataUnsafe?.user?.id || '1458262316';
+  const workerUrl = 'https://dancin-quanlychitieu.thuongvn-work.workers.dev';
+
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -159,6 +163,56 @@ export default function App() {
       localStorage.setItem('dancin-category-jars', JSON.stringify(updated));
       return updated;
     });
+  };
+
+  const handleAddCategory = async (transactionType, level1, level2) => {
+    try {
+      const res = await fetch(`${workerUrl}/api/categories`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: chatId,
+          transaction_type: transactionType,
+          level_1: level1,
+          level_2: level2
+        })
+      });
+      if (!res.ok) throw new Error("Thất bại khi thêm danh mục");
+      const inserted = await res.json();
+      
+      setCategories(prev => {
+        if (prev.some(c => c.transaction_type === inserted.transaction_type && c.level_1 === inserted.level_1 && c.level_2 === inserted.level_2)) {
+          return prev;
+        }
+        return [...prev, inserted];
+      });
+      
+      return inserted;
+    } catch (err) {
+      console.error(err);
+      throw err;
+    }
+  };
+
+  const handleDeleteCategory = async (transactionType, level1, level2) => {
+    try {
+      const res = await fetch(`${workerUrl}/api/categories`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: chatId,
+          transaction_type: transactionType,
+          level_1: level1,
+          level_2: level2
+        })
+      });
+      if (!res.ok) throw new Error("Thất bại khi xóa danh mục");
+      
+      setCategories(prev => prev.filter(c => !(c.transaction_type === transactionType && c.level_1 === level1 && c.level_2 === level2)));
+    } catch (err) {
+      console.error(err);
+      throw err;
+    }
   };
 
   // Theme state
@@ -841,6 +895,8 @@ export default function App() {
             categoryJars={categoryJars}
             onUpdateCategoryJar={handleUpdateCategoryJar}
             categories={categories}
+            onAddCategory={handleAddCategory}
+            onDeleteCategory={handleDeleteCategory}
           />
         )}
       </main>

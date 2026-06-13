@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import * as Icons from './Icons';
 
 const CATEGORY_EMOJIS = {
@@ -165,11 +166,28 @@ export default function SettingsTab({
   categoryJars = {},
   onUpdateCategoryJar,
   categories = [],
+  onAddCategory,
+  onDeleteCategory,
 }) {
   const formatVND = (val) => (val ?? 0).toLocaleString('vi-VN') + 'đ';
   const [activeSubTab, setActiveSubTab] = useState('categories'); // categories, finance
   const [categoryType, setCategoryType] = useState('expense'); // expense, income
   const [expandedAccordion, setExpandedAccordion] = useState('sinhhoat');
+
+  const [addCategoryModal, setAddCategoryModal] = useState(null); // { type: 'expense'|'income', l1: string }
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [isSubmittingCategory, setIsSubmittingCategory] = useState(false);
+
+  useEffect(() => {
+    if (addCategoryModal) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [addCategoryModal]);
 
   // Sliders/Finance State
   const [jars, setJars] = useState({ ...jarsAllocation });
@@ -464,15 +482,34 @@ export default function SettingsTab({
                                 <option value="give">Hũ Cho đi</option>
                               </select>
                             )}
-                            <button className="hover:text-indigo-500 p-1"><Icons.Edit2 className="w-3.5 h-3.5" /></button>
-                            <button className="hover:text-rose-500 p-1"><Icons.Trash2 className="w-3.5 h-3.5" /></button>
+                            <button 
+                              onClick={() => {
+                                triggerHaptic('medium');
+                                const confirmed = window.confirm(`Bạn có chắc chắn muốn xóa danh mục "${subCat.name}" không?`);
+                                if (confirmed && onDeleteCategory) {
+                                  onDeleteCategory(categoryType === 'expense' ? 'chi' : 'thu', cat.name, subCat.name)
+                                    .then(() => triggerHaptic('success'))
+                                    .catch(err => alert("Không thể xóa danh mục: " + err.message));
+                                }
+                              }}
+                              className="hover:text-rose-500 p-1"
+                            >
+                              <Icons.Trash2 className="w-3.5 h-3.5" />
+                            </button>
                           </div>
                         </div>
                       ))}
 
                       {/* Add new subcategory button */}
                       <button 
-                        onClick={() => { triggerHaptic('light'); alert('Vui lòng nhập tên danh mục mới trên thanh chat bot.'); }}
+                        onClick={() => {
+                          triggerHaptic('light');
+                          setAddCategoryModal({
+                            type: categoryType === 'expense' ? 'chi' : 'thu',
+                            l1: cat.name
+                          });
+                          setNewCategoryName('');
+                        }}
                         className="w-full py-2.5 border border-dashed border-stone-200 dark:border-stone-800 hover:border-stone-400 text-stone-500 dark:text-stone-400 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1 bg-white dark:bg-stone-900/40"
                       >
                         <Icons.Plus className="w-4 h-4" />
@@ -710,6 +747,103 @@ export default function SettingsTab({
           </button>
         </div>
       )}
+
+      {/* 4. Bottom Sheet Modal: Thêm danh mục cấp 2 */}
+      {addCategoryModal && createPortal(
+        <>
+          <div 
+            className="fixed inset-0 bg-[#111827]/60 dark:bg-black/80 z-[100] animate-fade-in backdrop-blur-sm" 
+            onClick={() => {
+              triggerHaptic('light');
+              setAddCategoryModal(null);
+            }} 
+          />
+          <div 
+            className="fixed bottom-0 left-0 right-0 z-[101] rounded-t-[2.5rem] bg-white dark:bg-stone-900 border-t border-stone-200 dark:border-stone-800 shadow-2xl flex flex-col animate-slide-up transition-colors duration-300 text-left pb-10"
+          >
+            {/* Top Drag handle & Header */}
+            <div className="px-6 pt-5 pb-3 flex-shrink-0">
+              <div className="w-12 h-1.5 bg-stone-300 dark:bg-stone-700 rounded-full mx-auto mb-4" />
+              
+              <div className="flex justify-between items-start pb-2 border-b border-stone-200/60 dark:border-stone-800/40">
+                <div className="text-left">
+                  <h3 className="text-sm font-black text-[#111827] dark:text-white uppercase tracking-wider">
+                    Thêm danh mục con
+                  </h3>
+                  <p className="text-[11px] text-stone-550 dark:text-stone-450 font-semibold mt-1">
+                    Thêm danh mục Cấp 2 vào nhóm <span className="text-indigo-600 dark:text-indigo-400 font-extrabold">{addCategoryModal.l1}</span>
+                  </p>
+                </div>
+                <button 
+                  onClick={() => {
+                    triggerHaptic('light');
+                    setAddCategoryModal(null);
+                  }} 
+                  className="p-1.5 rounded-full hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
+                >
+                  <Icons.X className="w-5 h-5 text-stone-400" />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body / Input Form */}
+            <form 
+              onSubmit={async (e) => {
+                e.preventDefault();
+                if (!newCategoryName.trim()) return;
+                setIsSubmittingCategory(true);
+                triggerHaptic('light');
+                try {
+                  if (onAddCategory) {
+                    await onAddCategory(addCategoryModal.type, addCategoryModal.l1, newCategoryName.trim());
+                    triggerHaptic('success');
+                    setAddCategoryModal(null);
+                  }
+                } catch (err) {
+                  alert("Không thể thêm danh mục: " + err.message);
+                } finally {
+                  setIsSubmittingCategory(false);
+                }
+              }}
+              className="px-6 py-4 space-y-4"
+            >
+              <div className="space-y-1.5 text-left">
+                <label className="text-[10px] text-stone-450 dark:text-stone-500 font-bold uppercase tracking-wider pl-1">
+                  Tên danh mục mới
+                </label>
+                <input 
+                  type="text" 
+                  autoFocus
+                  placeholder="Ví dụ: Trà sữa, Ăn vặt, Tiệc tùng..."
+                  value={newCategoryName}
+                  onChange={e => setNewCategoryName(e.target.value)}
+                  className="w-full text-xs p-3 rounded-xl glass-input"
+                  required
+                  disabled={isSubmittingCategory}
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={isSubmittingCategory}
+                className="w-full py-3.5 bg-[#111827] hover:bg-[#111827]/90 dark:bg-[#FAF6F0] dark:hover:bg-[#FAF6F0]/90 dark:text-[#111827] rounded-2xl text-xs font-bold transition-all shadow-md uppercase tracking-widest pt-3.5 flex items-center justify-center gap-2"
+              >
+                {isSubmittingCategory ? (
+                  <>
+                    <svg className="animate-spin h-4.5 w-4.5 text-current" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span>Đang lưu...</span>
+                  </>
+                ) : (
+                  <span>Tạo danh mục</span>
+                )}
+              </button>
+            </form>
+          </div>
+        </>
+      , document.body)}
     </div>
   );
 }
