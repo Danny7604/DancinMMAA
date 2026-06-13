@@ -585,6 +585,9 @@ async function processTransaction(chatId, text, env, userName) {
   - Nguồn tiền: ${accountsList || 'Tiền mặt'}
   - Tài khoản mặc định (ví chính): Nếu người dùng KHÔNG chỉ định rõ ví thanh toán trong câu (ví dụ chỉ nói 'ăn trưa 50k', 'mua cafe 30k'), bạn BẮT BUỘC phải chọn nguồn tiền là '${defaultAccountName}'. Chỉ khi nào họ nói rõ ví khác (ví dụ: 'thẻ tín dụng', 'tiền mặt', v.v.) thì mới đổi.
 
+  LƯU Ý QUAN TRỌNG:
+  - Chỉ phân loại là "transaction" nếu trong câu nói của người dùng có chứa số tiền cụ thể hoặc có thể suy luận rõ ràng (ví dụ: 'ăn trưa 50k', 'mua cafe ba chục'). Nếu chỉ nói chung chung không có số tiền (ví dụ: 'tôi đi ăn phở', 'tôi mới mua áo khoác'), hãy phân loại là "chat" và phản hồi thân thiện, đồng thời hỏi nhẹ nhàng xem người dùng có muốn ghi chép giao dịch đó kèm số tiền hay không.
+
   Ý ĐỊNH NGƯỜI DÙNG:
   1. Nếu người dùng muốn GHI CHÉP GIAO DỊCH (ví dụ: 'ăn trưa 50k', 'lương 10tr', 'chuyển 500k từ ngân hàng sang tiền mặt'):
      Trả về JSON Schema:
@@ -607,6 +610,28 @@ async function processTransaction(chatId, text, env, userName) {
        "level1": "Tên danh mục cấp 1 tương ứng (phải chọn từ sơ đồ danh mục ở trên, ví dụ 'Chi phí sinh hoạt' hoặc 'Chi phí phát sinh')",
        "level2": "Tên danh mục cấp 2 mới cần thêm",
        "bot_message": "câu xác nhận ngắn dễ thương"
+     }
+  3. Nếu người dùng muốn XÓA DANH MỤC CẤP 2 (ví dụ: 'xóa danh mục Làm đẹp khỏi Chi phí sinh hoạt', 'xóa nhóm Trà sữa trong Chi phí sinh hoạt', 'bỏ danh mục này đi'):
+     Trả về JSON Schema:
+     {
+       "action": "delete_category",
+       "type": "thu" | "chi",
+       "level1": "Tên danh mục cấp 1 tương ứng (phải chọn từ sơ đồ danh mục ở trên)",
+       "level2": "Tên danh mục cấp 2 cần xóa",
+       "bot_message": "câu xác nhận ngắn dễ thương"
+     }
+  4. Nếu người dùng muốn YÊU CẦU TÍNH NĂNG MỚI hoặc GÓP Ý PHÁT TRIỂN thêm chức năng chưa có (ví dụ: 'tôi muốn xuất file excel báo cáo', 'mong app có tính năng chia sẻ ví với người yêu', 'app có tính năng nhắc nhở chi tiêu không?'):
+     Trả về JSON Schema:
+     {
+       "action": "feature_request",
+       "feature_description": "Nội dung yêu cầu tính năng chi tiết từ người dùng (tự tóm tắt ngắn gọn và rõ nghĩa bằng tiếng Việt)",
+       "bot_message": "câu phản hồi dễ thương báo là đã ghi nhận ý kiến và sẽ chuyển tới Admin ngay để xem xét phát triển"
+     }
+  5. Nếu người dùng chỉ chào hỏi, nói chuyện phiếm, chia sẻ cảm xúc, hỏi đáp thông thường (ví dụ: 'chào bạn', 'hôm nay mệt quá', 'tại sao nên tiết kiệm tiền?'):
+     Trả về JSON Schema:
+     {
+       "action": "chat",
+       "bot_message": "câu trả lời tự nhiên, thân thiện, đồng cảm hoặc tư vấn tài chính ngắn gọn phù hợp"
      }
 
   Chỉ trả về JSON, không Markdown.`;
@@ -676,6 +701,39 @@ async function processTransaction(chatId, text, env, userName) {
       });
 
       return sendMessage(env, chatId, `✅ <b>Đã thêm danh mục thành công bằng AI!</b>\n\n📁 <b>[${type === 'chi' ? 'CHI TÀI KHOẢN' : 'THU NHẬP'}] ${level1} ➡️ ${level2}</b>\n\n💬 <i>"${data.bot_message}"</i>`);
+    }
+    else if (data.action === 'delete_category') {
+      const type = data.type;
+      const level1 = data.level1;
+      const level2 = data.level2;
+
+      // Gọi DELETE xuống Supabase
+      await supabaseFetch(env, `categories?chat_id=eq.${chatId}&transaction_type=eq.${type}&level_1=eq.${encodeURIComponent(level1)}&level_2=eq.${encodeURIComponent(level2)}`, 'DELETE');
+
+      return sendMessage(env, chatId, `✅ <b>Đã xóa danh mục thành công bằng AI!</b>\n\n🗑️ <b>[${type === 'chi' ? 'CHI TÀI KHOẢN' : 'THU NHẬP'}] ${level1} ➡️ ${level2}</b>\n\n💬 <i>"${data.bot_message}"</i>`);
+    }
+    else if (data.action === 'feature_request') {
+      const featureDesc = data.feature_description;
+
+      // 1. Lưu vào bảng feature_requests của Supabase
+      await supabaseFetch(env, 'feature_requests', 'POST', {
+        chat_id: chatId,
+        user_name: userName,
+        feature_description: featureDesc
+      });
+
+      // 2. Phản hồi người dùng
+      await sendMessage(env, chatId, `📝 <b>Đã ghi nhận ý kiến góp ý của bạn!</b>\n\n💡 Yêu cầu: <i>"${featureDesc}"</i>\n\n💬 <i>"${data.bot_message}"</i>`);
+
+      // 3. Báo cho Admin (nếu có ADMIN_CHAT_ID)
+      const adminChatId = env.ADMIN_CHAT_ID || env.admin_chat_id;
+      if (adminChatId) {
+        const adminMsg = `🔔 <b>YÊU CẦU TÍNH NĂNG MỚI!</b>\n\n👤 Người dùng: <b>${userName}</b> (ID: <code>${chatId}</code>)\n💡 Nội dung: <i>${featureDesc}</i>\n📅 Thời gian: ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}`;
+        await sendMessage(env, adminChatId, adminMsg);
+      }
+    }
+    else if (data.action === 'chat') {
+      return sendMessage(env, chatId, data.bot_message);
     }
 
   } catch (error) {
