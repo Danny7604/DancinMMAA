@@ -585,22 +585,30 @@ async function processTransaction(chatId, text, env, userName) {
   - Nguồn tiền: ${accountsList || 'Tiền mặt'}
   - Tài khoản mặc định (ví chính): Nếu người dùng KHÔNG chỉ định rõ ví thanh toán trong câu (ví dụ chỉ nói 'ăn trưa 50k', 'mua cafe 30k'), bạn BẮT BUỘC phải chọn nguồn tiền là '${defaultAccountName}'. Chỉ khi nào họ nói rõ ví khác (ví dụ: 'thẻ tín dụng', 'tiền mặt', v.v.) thì mới đổi.
 
-  LƯU Ý ĐẶC BIỆT KHI PHÂN LOẠI:
-  - Nếu giao dịch liên quan đến "Cafe/Coffee" nhưng có mục đích/ghi chú là đi làm việc, gặp đối tác, trao đổi công việc, họp hành, học tập, v.v., bạn BẮT BUỘC phải phân loại vào "Chi phí phát sinh" (level1) ➡️ "Công việc" (level2), thay vì "Chi phí sinh hoạt" ➡️ "Coffee".
-  - Nếu người dùng nhắc đến thanh toán qua Momo (ví liên kết), quét QR Techcombank, quét QR MoMo hoặc chuyển khoản ngân hàng, bạn hãy tự động chọn nguồn tiền là 'Techcombank' (hoặc 'Tài khoản chính' nếu ví ngân hàng của người dùng chưa được đổi tên).
+  Ý ĐỊNH NGƯỜI DÙNG:
+  1. Nếu người dùng muốn GHI CHÉP GIAO DỊCH (ví dụ: 'ăn trưa 50k', 'lương 10tr', 'chuyển 500k từ ngân hàng sang tiền mặt'):
+     Trả về JSON Schema:
+     {
+       "action": "transaction",
+       "type": "thu" | "chi" | "chuyen_tien",
+       "amount": number,
+       "level1": "Tên cấp 1 (lấy chính xác từ sơ đồ)",
+       "level2": "Tên cấp 2 (lấy chính xác từ sơ đồ)",
+       "account_name": "nguồn tiền",
+       "transfer_to_account": "ví nhận (nếu type=chuyen_tien)",
+       "note": "ghi chú",
+       "bot_message": "câu nhận xét ngắn, dễ thương"
+     }
+  2. Nếu người dùng muốn THÊM MỚI DANH MỤC CẤP 2 (ví dụ: 'thêm danh mục Trà sữa vào Chi phí sinh hoạt', 'Tôi muốn thêm danh mục Làm đẹp cho Chi phí sinh hoạt', 'thêm nhóm Ăn vặt cho chi phát sinh'):
+     Trả về JSON Schema:
+     {
+       "action": "add_category",
+       "type": "thu" | "chi",
+       "level1": "Tên danh mục cấp 1 tương ứng (phải chọn từ sơ đồ danh mục ở trên, ví dụ 'Chi phí sinh hoạt' hoặc 'Chi phí phát sinh')",
+       "level2": "Tên danh mục cấp 2 mới cần thêm",
+       "bot_message": "câu xác nhận ngắn dễ thương"
+     }
 
-  Trả về JSON Schema:
-  {
-    "action": "transaction",
-    "type": "thu" | "chi" | "chuyen_tien",
-    "amount": number,
-    "level1": "Tên cấp 1 (lấy chính xác từ sơ đồ)",
-    "level2": "Tên cấp 2 (lấy chính xác từ sơ đồ)",
-    "account_name": "nguồn tiền",
-    "transfer_to_account": "ví nhận (nếu type=chuyen_tien)",
-    "note": "Giữ nguyên từ khóa người dùng (VD: 'Cafe'). TUYỆT ĐỐI KHÔNG TỰ BỊA THÊM buổi sáng/trưa/chiều/tối nếu người dùng không nhập.",
-    "bot_message": "1 câu nhận xét ngắn, dễ thương"
-  }
   Chỉ trả về JSON, không Markdown.`;
 
   try {
@@ -642,18 +650,32 @@ async function processTransaction(chatId, text, env, userName) {
         note: data.note
       };
 
-      // Gọi lệnh lưu transaction và lấy lại thông tin giao dịch vừa tạo (để lấy ID)
       const insertResponse = await supabaseFetch(env, 'transactions', 'POST', insertData);
-
-      // Rút ID thực tế từ Supabase trả về (thường trả về mảng [{ id: 123, ... }])
       const realTxId = (insertResponse && insertResponse.length > 0) ? insertResponse[0].id : Date.now();
-
       const typeIcon = data.type === 'chi' ? '🔴' : data.type === 'thu' ? '🟢' : '🔄';
       
       const reply = `${typeIcon} <b>Mình đã ghi lại giúp bạn!</b>\n💰 Số tiền: <b>${data.amount.toLocaleString('vi-VN')} đ</b>\n📂 Danh mục: ${data.level1} ➡️ ${data.level2}\n💳 Từ ví: ${data.account_name} ${data.type === 'chuyen_tien' ? '➡️ ' + data.transfer_to_account : ''}\n📝 Ghi chú: ${data.note}\n\n💬 <i>"${data.bot_message}"</i>`;
-
-      // Gắn ID thực của giao dịch vào nút Sửa bằng tiền tố "edit_"
       await sendMessage(env, chatId, reply, { inline_keyboard: [[{ text: '✏️ Sửa lại xíu', callback_data: `edit_${realTxId}` }]] });
+    }
+    else if (data.action === 'add_category') {
+      const type = data.type;
+      const level1 = data.level1;
+      const level2 = data.level2;
+
+      // Kiểm tra trùng
+      const existing = await supabaseFetch(env, `categories?chat_id=eq.${chatId}&transaction_type=eq.${type}&level_1=eq.${encodeURIComponent(level1)}&level_2=eq.${encodeURIComponent(level2)}`);
+      if (existing && existing.length > 0) {
+        return sendMessage(env, chatId, `💡 Danh mục <b>${level1} ➡️ ${level2}</b> đã tồn tại sẵn trong hệ thống.`);
+      }
+
+      await supabaseFetch(env, 'categories', 'POST', {
+        chat_id: chatId,
+        transaction_type: type,
+        level_1: level1,
+        level_2: level2
+      });
+
+      return sendMessage(env, chatId, `✅ <b>Đã thêm danh mục thành công bằng AI!</b>\n\n📁 <b>[${type === 'chi' ? 'CHI TÀI KHOẢN' : 'THU NHẬP'}] ${level1} ➡️ ${level2}</b>\n\n💬 <i>"${data.bot_message}"</i>`);
     }
 
   } catch (error) {
