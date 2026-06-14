@@ -596,6 +596,7 @@ async function processTransaction(chatId, text, env, userName) {
   LƯU Ý QUAN TRỌNG VỀ PHÁT ÂM & LỖI CHÍNH TẢ:
   - Giọng nói hoặc tin nhắn của người dùng có thể bị lỗi chính tả hoặc phát âm ngọng (ví dụ Whisper dịch nhầm: 'ăn xáng'/'ăn chửa' -> 'ăn sáng'/'ăn trưa'; 'phê'/'ca phe' -> 'cafe'; 'ngân hằng' -> 'ngân hàng'; 'tiền mẹt'/'tiền mạt' -> 'tiền mặt'). Hãy tự động sửa lỗi và hiểu đúng giao dịch gốc.
   - Hãy dựa vào Lịch sử giao dịch gần đây để phán đoán thói quen chi tiêu. Nếu người dùng nói câu ngắn hoặc ngọng trùng khớp với một thói quen chi tiêu trước đây, hãy ưu tiên phân loại chính xác theo thói quen cũ đó.
+  - Khi phân loại, nếu tên danh mục cấp 2 là Tiếng Anh hoặc mang tính chất cá nhân (ví dụ: 'Personal Account'), hãy ưu tiên phân loại các giao dịch thanh toán dịch vụ trực tuyến cá nhân (như iCloud Apple, Youtube Premium, Netflix, Spotify, Canva, OpenAI, v.v.) vào đó thay vì các nhóm mặc định chung chung như Internet hay Khác.
   - Chỉ phân loại là "transaction" nếu trong câu nói của người dùng có chứa số tiền cụ thể hoặc có thể suy luận rõ ràng (ví dụ: 'ăn trưa 50k', 'mua cafe ba chục'). Nếu chỉ nói chung chung không có số tiền (ví dụ: 'tôi đi ăn phở', 'tôi mới mua áo khoác'), hãy phân loại là "chat" và phản hồi thân thiện, đồng thời hỏi nhẹ nhàng xem người dùng có muốn ghi chép giao dịch đó kèm số tiền hay không.
 
   Ý ĐỊNH NGƯỜI DÙNG:
@@ -759,8 +760,18 @@ async function handleCallbackQuery(callbackQuery, env, ctx) {
   const chatId = callbackQuery.message.chat.id.toString();
   const messageId = callbackQuery.message.message_id;
 
-  // Hợp nhất cấu trúc danh mục từ hằng số đầu file
-  const allCategories = { ...FIXED_EXPENSE, ...FIXED_INCOME };
+  // Lấy danh mục tùy biến của user từ Supabase
+  const userCategories = await supabaseFetch(env, `categories?chat_id=eq.${chatId}`) || [];
+  
+  let allCategories = {};
+  if (userCategories && userCategories.length > 0) {
+    userCategories.forEach(cat => {
+      if (!allCategories[cat.level_1]) allCategories[cat.level_1] = [];
+      if (!allCategories[cat.level_1].includes(cat.level_2)) allCategories[cat.level_1].push(cat.level_2);
+    });
+  } else {
+    allCategories = { ...FIXED_EXPENSE, ...FIXED_INCOME };
+  }
 
   // 1. CHỌN DANH MỤC CẤP 1 (Sử dụng INDEX để tối ưu dung lượng nút bấm dưới 64 bytes)
   if (data.startsWith('edit_')) {
