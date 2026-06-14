@@ -688,12 +688,17 @@ async function processTransaction(chatId, text, env, userName) {
         note: data.note
       };
 
-      const insertResponse = await supabaseFetch(env, 'transactions', 'POST', insertData);
+      const insertResponse = await supabaseFetch(env, 'transactions', 'POST', insertData, 'return=representation');
       const realTxId = (insertResponse && insertResponse.length > 0) ? insertResponse[0].id : Date.now();
       const typeIcon = data.type === 'chi' ? '🔴' : data.type === 'thu' ? '🟢' : '🔄';
       
       const reply = `${typeIcon} <b>Mình đã ghi lại giúp bạn!</b>\n💰 Số tiền: <b>${data.amount.toLocaleString('vi-VN')} đ</b>\n📂 Danh mục: ${data.level1} ➡️ ${data.level2}\n💳 Từ ví: ${data.account_name} ${data.type === 'chuyen_tien' ? '➡️ ' + data.transfer_to_account : ''}\n📝 Ghi chú: ${data.note}\n\n💬 <i>"${data.bot_message}"</i>`;
-      await sendMessage(env, chatId, reply, { inline_keyboard: [[{ text: '✏️ Sửa lại xíu', callback_data: `edit_${realTxId}` }]] });
+      await sendMessage(env, chatId, reply, { 
+        inline_keyboard: [[
+          { text: '✏️ Sửa lại xíu', callback_data: `edit_${realTxId}` },
+          { text: '❌ Hủy/Xóa', callback_data: `del_${realTxId}` }
+        ]] 
+      });
     }
     else if (data.action === 'add_category') {
       const type = data.type;
@@ -875,10 +880,25 @@ async function handleCallbackQuery(callbackQuery, env, ctx) {
   if (data.startsWith('add_l2|')) {
     const txId = data.split('|')[1];
 
-    // Lúc này mới chính thức XÓA giao dịch cũ trên Supabase vì người dùng muốn hủy hẳn để làm lại
+    // Chỉ hiển thị tin nhắn hướng dẫn cho người dùng cách thêm danh mục bằng AI, không xóa giao dịch
+    const guideMsg = `➕ <b>Thêm danh mục mới bằng AI</b>\n\nBạn hãy gửi tin nhắn chat hoặc voice để thêm danh mục trước:\n• <code>Thêm danh mục [Tên cấp 2] vào [Tên cấp 1]</code>\n(Ví dụ: <i>Thêm danh mục Personal Account vào Chi phí cố định</i>)\n\nSau khi Bot báo thêm thành công, bạn chỉ cần quay lại tin nhắn giao dịch cũ này, bấm <b>✏️ Sửa lại xíu</b> và chọn danh mục mới tạo để cập nhật!`;
+
+    await editMessageText(env, chatId, messageId, guideMsg, {
+      inline_keyboard: [[
+        { text: '🔙 Quay lại', callback_data: `edit_${txId}` }
+      ]]
+    });
+    return;
+  }
+
+  // 5. XỬ LÝ KHI BẤM NÚT "HỦY/XÓA GIAO DỊCH"
+  if (data.startsWith('del_')) {
+    const txId = data.split('_')[1];
+
+    // Thực hiện xóa giao dịch thật trên Supabase
     await supabaseFetch(env, `transactions?id=eq.${txId}`, 'DELETE');
 
-    await editMessageText(env, chatId, messageId, `🗑️ <b>Đã hủy giao dịch cũ phân loại sai!</b>\n\n✍️ Giờ bạn hãy nhập chữ hoặc gửi voice lại một câu giao dịch mới (Ví dụ: "Ăn phở gà 50k ví tiền mặt") để mình xử lý lại từ đầu nhé.`);
+    await editMessageText(env, chatId, messageId, `🗑️ <b>Đã xóa giao dịch thành công khỏi hệ thống!</b>`);
     return;
   }
 }
