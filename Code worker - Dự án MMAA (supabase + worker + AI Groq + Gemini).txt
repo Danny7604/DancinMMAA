@@ -67,7 +67,7 @@ export default {
       if (url.pathname === '/api/categories' && request.method === 'POST') {
         try {
           const body = await request.json();
-          const { chat_id, transaction_type, level_1, level_2 } = body;
+          const { chat_id, transaction_type, level_1, level_2, description } = body;
           
           if (!chat_id || !transaction_type || !level_1 || !level_2) {
             return new Response(JSON.stringify({ error: "Missing required fields" }), { status: 400, headers });
@@ -76,6 +76,10 @@ export default {
           // Kiểm tra trùng
           const existing = await supabaseFetch(env, `categories?chat_id=eq.${chat_id}&transaction_type=eq.${transaction_type}&level_1=eq.${encodeURIComponent(level_1)}&level_2=eq.${encodeURIComponent(level_2)}`);
           if (existing && existing.length > 0) {
+            if (description && existing[0].description !== description) {
+              await supabaseFetch(env, `categories?chat_id=eq.${chat_id}&transaction_type=eq.${transaction_type}&level_1=eq.${encodeURIComponent(level_1)}&level_2=eq.${encodeURIComponent(level_2)}`, 'PATCH', { description });
+              existing[0].description = description;
+            }
             return new Response(JSON.stringify(existing[0]), { status: 200, headers });
           }
 
@@ -83,10 +87,11 @@ export default {
             chat_id,
             transaction_type,
             level_1,
-            level_2
+            level_2,
+            description: description || null
           }, 'return=representation');
 
-          const record = (Array.isArray(inserted) && inserted.length > 0) ? inserted[0] : (inserted || { chat_id, transaction_type, level_1, level_2 });
+          const record = (Array.isArray(inserted) && inserted.length > 0) ? inserted[0] : (inserted || { chat_id, transaction_type, level_1, level_2, description });
           return new Response(JSON.stringify(record), { status: 201, headers });
         } catch (err) {
           return new Response(JSON.stringify({ error: err.message }), { status: 500, headers });
@@ -554,29 +559,22 @@ async function processTransaction(chatId, text, env, userName) {
   // 🌟 BƯỚC 1: LẤY TỪ ĐIỂN DANH MỤC RIÊNG CỦA USER TỪ SUPABASE
   const userCategories = await supabaseFetch(env, `categories?chat_id=eq.${chatId}`);
   
-  let userExpense = {};
-  let userIncome = {};
+  let expenseStructure = "";
+  let incomeStructure = "";
 
-  // 🌟 BƯỚC 2: GOM NHÓM DỮ LIỆU ĐỂ RENDER RA JSON CHO PROMPT
   if (userCategories && userCategories.length > 0) {
     userCategories.forEach(cat => {
+      const line = `- [${cat.level_1} -> ${cat.level_2}]: ${cat.description || 'Không có mô tả chi tiết.'}\n`;
       if (cat.transaction_type === 'chi') {
-        if (!userExpense[cat.level_1]) userExpense[cat.level_1] = [];
-        if (!userExpense[cat.level_1].includes(cat.level_2)) userExpense[cat.level_1].push(cat.level_2);
+        expenseStructure += line;
       } else if (cat.transaction_type === 'thu') {
-        if (!userIncome[cat.level_1]) userIncome[cat.level_1] = [];
-        if (!userIncome[cat.level_1].includes(cat.level_2)) userIncome[cat.level_1].push(cat.level_2);
+        incomeStructure += line;
       }
     });
   } else {
-    // Dự phòng nếu bảng categories bị trống (lỗi bất ngờ), trả về một mảng cơ bản nhất để AI không chết
-    userExpense = { "Chi phí sinh hoạt": ["Khác"] };
-    userIncome = { "Thu nhập": ["Khác"] };
+    expenseStructure = "- [Chi phí sinh hoạt -> Khác]: Không có mô tả chi tiết.\n";
+    incomeStructure = "- [Thu nhập -> Khác]: Không có mô tả chi tiết.\n";
   }
-
-  // Chuyển đổi thành chuỗi JSON đẹp mắt để nhồi vào Prompt
-  const expenseStructure = JSON.stringify(userExpense, null, 2);
-  const incomeStructure = JSON.stringify(userIncome, null, 2);
 
   // 🌟 BƯỚC 3: PROMPT ĐƯỢC CẬP NHẬT TỰ HỌC & SỬA NGỌNG
   const systemPrompt = `Bạn là trợ lý tài chính. Xưng "mình" và "${userName}".
@@ -586,9 +584,9 @@ async function processTransaction(chatId, text, env, userName) {
   ${recentTxsFormatted || 'Chưa có giao dịch gần đây.'}
 
   Quy tắc phân loại (BẮT BUỘC tuân thủ chặt chẽ):
-  - CHI TIÊU: Dựa vào cấu trúc JSON sau để xác định "level1" và "level2":
+  - CHI TIÊU: Danh mục cấp 1 và cấp 2 đang hoạt động của người dùng kèm mô tả mục đích chi tiêu:
   ${expenseStructure}
-  - THU NHẬP: Dựa vào cấu trúc JSON sau để xác định "level1" và "level2":
+  - THU NHẬP: Danh mục cấp 1 và cấp 2 đang hoạt động của người dùng kèm mô tả mục đích thu nhập:
   ${incomeStructure}
   - Nguồn tiền: ${accountsList || 'Tiền mặt'}
   - Tài khoản mặc định (ví chính): Nếu người dùng KHÔNG chỉ định rõ ví thanh toán trong câu (ví dụ chỉ nói 'ăn trưa 50k', 'mua cafe 30k'), bạn BẮT BUỘC phải chọn nguồn tiền là '${defaultAccountName}'. Chỉ khi nào họ nói rõ ví khác (ví dụ: 'thẻ tín dụng', 'tiền mặt', v.v.) thì mới đổi.
@@ -596,8 +594,11 @@ async function processTransaction(chatId, text, env, userName) {
   LƯU Ý QUAN TRỌNG VỀ PHÁT ÂM & LỖI CHÍNH TẢ:
   - Giọng nói hoặc tin nhắn của người dùng có thể bị lỗi chính tả hoặc phát âm ngọng (ví dụ Whisper dịch nhầm: 'ăn xáng'/'ăn chửa' -> 'ăn sáng'/'ăn trưa'; 'phê'/'ca phe' -> 'cafe'; 'ngân hằng' -> 'ngân hàng'; 'tiền mẹt'/'tiền mạt' -> 'tiền mặt'). Hãy tự động sửa lỗi và hiểu đúng giao dịch gốc.
   - Hãy dựa vào Lịch sử giao dịch gần đây để phán đoán thói quen chi tiêu. Nếu người dùng nói câu ngắn hoặc ngọng trùng khớp với một thói quen chi tiêu trước đây, hãy ưu tiên phân loại chính xác theo thói quen cũ đó.
-  - Khi phân loại, nếu tên danh mục cấp 2 là Tiếng Anh hoặc mang tính chất cá nhân (ví dụ: 'Personal Account'), hãy ưu tiên phân loại các giao dịch thanh toán dịch vụ trực tuyến cá nhân (như iCloud Apple, Youtube Premium, Netflix, Spotify, Canva, OpenAI, v.v.) vào đó thay vì các nhóm mặc định chung chung như Internet hay Khác.
   - Chỉ phân loại là "transaction" nếu trong câu nói của người dùng có chứa số tiền cụ thể hoặc có thể suy luận rõ ràng (ví dụ: 'ăn trưa 50k', 'mua cafe ba chục'). Nếu chỉ nói chung chung không có số tiền (ví dụ: 'tôi đi ăn phở', 'tôi mới mua áo khoác'), hãy phân loại là "chat" và phản hồi thân thiện, đồng thời hỏi nhẹ nhàng xem người dùng có muốn ghi chép giao dịch đó kèm số tiền hay không.
+
+  QUY TẮC PHÂN LOẠI CHI TIẾT (BẮT BUỘC TUÂN THỦ):
+  1. Các khoản thanh toán dịch vụ định kỳ hàng tháng, thuê bao gia hạn tự động (như iCloud Apple, Youtube Premium, Netflix, Spotify, cước điện thoại, internet, cước điện nước...) BẮT BUỘC phải phân loại vào nhóm danh mục cha là "Chi phí cố định", tuyệt đối không được phân vào "Chi phí sinh hoạt" hay "Chi phí phát sinh".
+  2. Khi người dùng thanh toán các dịch vụ trực tuyến cá nhân (iCloud Apple, Youtube Premium, Netflix, Spotify, Canva, OpenAI...), nếu trong nhóm "Chi phí cố định" có bất kỳ danh mục con tiếng Anh hoặc mang tính cá nhân tự thêm nào (ví dụ: 'Personal Account'), hãy ưu tiên phân loại vào đó (bởi vì bạn đã đối chiếu với mô tả của danh mục đó).
 
   Ý ĐỊNH NGƯỜI DÙNG:
   1. Nếu người dùng muốn GHI CHÉP GIAO DỊCH (ví dụ: 'ăn trưa 50k', 'lương 10tr', 'chuyển 500k từ ngân hàng sang tiền mặt'):
@@ -620,6 +621,7 @@ async function processTransaction(chatId, text, env, userName) {
        "type": "thu" | "chi",
        "level1": "Tên danh mục cấp 1 tương ứng (phải chọn từ sơ đồ danh mục ở trên, ví dụ 'Chi phí sinh hoạt' hoặc 'Chi phí phát sinh')",
        "level2": "Tên danh mục cấp 2 mới cần thêm",
+       "description": "Tóm tắt ngắn gọn mục đích sử dụng hoặc ví dụ các dịch vụ/khoản chi tiêu thuộc danh mục này mà người dùng đề cập trong câu chat (ví dụ: 'dùng để thanh toán icloud apple, youtube premium...'). Nếu người dùng không giải thích mục đích, hãy viết ngắn gọn mô tả mặc định.",
        "bot_message": "câu xác nhận ngắn dễ thương"
      }
   3. Nếu người dùng muốn XÓA DANH MỤC CẤP 2 (ví dụ: 'xóa danh mục Làm đẹp khỏi Chi phí sinh hoạt', 'xóa nhóm Trà sữa trong Chi phí sinh hoạt', 'bỏ danh mục này đi'):
@@ -697,10 +699,15 @@ async function processTransaction(chatId, text, env, userName) {
       const type = data.type;
       const level1 = data.level1;
       const level2 = data.level2;
+      const description = data.description || null;
 
       // Kiểm tra trùng
       const existing = await supabaseFetch(env, `categories?chat_id=eq.${chatId}&transaction_type=eq.${type}&level_1=eq.${encodeURIComponent(level1)}&level_2=eq.${encodeURIComponent(level2)}`);
       if (existing && existing.length > 0) {
+        if (description && existing[0].description !== description) {
+          await supabaseFetch(env, `categories?chat_id=eq.${chatId}&transaction_type=eq.${type}&level_1=eq.${encodeURIComponent(level1)}&level_2=eq.${encodeURIComponent(level2)}`, 'PATCH', { description });
+          return sendMessage(env, chatId, `✅ <b>Đã cập nhật mô tả danh mục thành công!</b>\n\n📁 <b>[${type === 'chi' ? 'CHI TÀI KHOẢN' : 'THU NHẬP'}] ${level1} ➡️ ${level2}</b>\n📝 Mô tả mới: <i>${description}</i>`);
+        }
         return sendMessage(env, chatId, `💡 Danh mục <b>${level1} ➡️ ${level2}</b> đã tồn tại sẵn trong hệ thống.`);
       }
 
@@ -708,10 +715,11 @@ async function processTransaction(chatId, text, env, userName) {
         chat_id: chatId,
         transaction_type: type,
         level_1: level1,
-        level_2: level2
+        level_2: level2,
+        description: description
       });
 
-      return sendMessage(env, chatId, `✅ <b>Đã thêm danh mục thành công bằng AI!</b>\n\n📁 <b>[${type === 'chi' ? 'CHI TÀI KHOẢN' : 'THU NHẬP'}] ${level1} ➡️ ${level2}</b>\n\n💬 <i>"${data.bot_message}"</i>`);
+      return sendMessage(env, chatId, `✅ <b>Đã thêm danh mục thành công bằng AI!</b>\n\n📁 <b>[${type === 'chi' ? 'CHI TÀI KHOẢN' : 'THU NHẬP'}] ${level1} ➡️ ${level2}</b>\n📝 Mô tả: <i>${description || 'Không có mô tả'}</i>\n\n💬 <i>"${data.bot_message}"</i>`);
     }
     else if (data.action === 'delete_category') {
       const type = data.type;
